@@ -1,3 +1,4 @@
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
 from sqlalchemy.orm import DeclarativeBase
 
@@ -24,6 +25,15 @@ class Base(DeclarativeBase):
     pass
 
 
+def _migrate_account_color(sync_conn):
+    """Add accounts.color column if missing (transition from pre-color schema)."""
+    r = sync_conn.execute(text("PRAGMA table_info(accounts)"))
+    rows = r.fetchall()
+    # SQLite: (cid, name, type, notnull, dflt_value, pk)
+    if not any(len(row) > 1 and row[1] == "color" for row in rows):
+        sync_conn.execute(text("ALTER TABLE accounts ADD COLUMN color VARCHAR(7)"))
+
+
 async def get_db():
     async with AsyncSessionLocal() as session:
         try:
@@ -39,3 +49,4 @@ async def get_db():
 async def init_db():
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+        await conn.run_sync(_migrate_account_color)

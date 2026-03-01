@@ -1,3 +1,4 @@
+import time
 from typing import Any
 
 import pandas as pd
@@ -6,6 +7,11 @@ import yfinance as yf
 
 # Simple in-memory cache: symbol -> (price, change24h), no TTL for now (can add later)
 _cache: dict[str, tuple[float, float | None]] = {}
+
+# Validation cache: symbol -> (valid: bool, cached_at: float). TTL: 24h valid, 15min invalid.
+_validation_cache: dict[str, tuple[bool, float]] = {}
+_VALID_TTL = 24 * 3600
+_INVALID_TTL = 15 * 60
 
 
 def get_history(symbol: str, period: str = "5y") -> pd.DataFrame | None:
@@ -74,3 +80,33 @@ def get_prices(symbols: list[str]) -> dict[str, dict[str, Any]]:
         except Exception:
             result[sym] = {"price": 0.0, "change24h": None}
     return result
+
+
+def validate_symbol(symbol: str) -> tuple[bool, str | None]:
+    """Check if symbol is valid on Yahoo Finance. Returns (valid, message). Symbol is normalized (strip, upper)."""
+    sym = (symbol or "").strip().upper()
+    if not sym:
+        return False, "Symbol is required"
+    now = time.time()
+    if sym in _validation_cache:
+        valid, cached_at = _validation_cache[sym]
+        ttl = _VALID_TTL if valid else _INVALID_TTL
+        if now - cached_at < ttl:
+            return valid, None if valid else "Symbol not found on Yahoo Finance"
+    try:
+        ticker = yf.Ticker(sym)
+        info = ticker.info
+        if not info:
+            _validation_cache[sym] = (False, now)
+            return False, "Symbol not found on Yahoo Finance"
+        name = info.get("shortName") or info.get("longName") or ""
+        if not name or name == "None":
+            prices_result = get_prices([sym])
+            if (prices_result.get(sym) or {}).get("price", 0) == 0:
+                _validation_cache[sym] = (False, now)
+                return False, "Symbol not found on Yahoo Finance"
+        _validation_cache[sym] = (True, now)
+        return True, None
+    except Exception:
+        _validation_cache[sym] = (False, now)
+        return False, "Symbol not found on Yahoo Finance"

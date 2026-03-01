@@ -31,7 +31,7 @@ export default function Layout() {
           ))}
         </nav>
       </aside>
-      <main style={{ flex: 1, padding: "1.5rem" }}>
+      <main style={{ flex: 1, minWidth: 0, padding: "1.5rem" }}>
         <Outlet />
       </main>
     </div>

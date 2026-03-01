@@ -215,7 +215,7 @@ async def run_forecast(
                     }),
                 })
             portfolio_value += acc_value
-            by_account.append({"account_id": acc.id, "account_name": acc.name, "value": round(acc_value, 2)})
+            by_account.append({"account_id": acc.id, "account_name": acc.name, "value": round(acc_value, 2), "color": getattr(acc, "color", None)})
 
         # Cashflow bucket: add net cashflow for this year, then grow
         net = net_cashflow_for_year(d.year)

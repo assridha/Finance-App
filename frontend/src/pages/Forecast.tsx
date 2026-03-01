@@ -73,6 +73,16 @@ export default function Forecast() {
     return ["Cashflow bucket", ...accounts];
   }, [series]);
 
+  const forecastColorFor = useMemo(() => {
+    const byAccount = (series[0]?.by_account ?? []) as { account_name: string; color?: string | null }[];
+    const m: Record<string, string> = {};
+    byAccount.forEach((a, i) => {
+      m[a.account_name] = a.color ?? ACCOUNT_COLORS[i % ACCOUNT_COLORS.length];
+    });
+    return (name: string) =>
+      name === "Cashflow bucket" ? CASHFLOW_BUCKET_COLOR : (m[name] ?? ACCOUNT_COLORS[(forecastSeriesNames.indexOf(name) - 1) % ACCOUNT_COLORS.length]);
+  }, [series, forecastSeriesNames]);
+
   /** Stack order for the chart: accounts on top, Cashflow bucket at base (drawn last = bottom in Recharts). */
   const forecastStackOrder = useMemo(
     () => [...forecastSeriesNames.filter((n) => n !== "Cashflow bucket"), "Cashflow bucket"],
@@ -104,6 +114,16 @@ export default function Forecast() {
     () => (portfolio?.by_account ?? []).map((a) => a.account_name),
     [portfolio?.by_account]
   );
+
+  const barChartColorFor = useMemo(() => {
+    const byAccount = portfolio?.by_account ?? [];
+    const m: Record<string, string> = {};
+    byAccount.forEach((a, i) => {
+      const item = a as { account_name: string; color?: string | null };
+      m[item.account_name] = item.color ?? ACCOUNT_COLORS[i % ACCOUNT_COLORS.length];
+    });
+    return (name: string) => m[name] ?? ACCOUNT_COLORS[accountNames.indexOf(name) % ACCOUNT_COLORS.length];
+  }, [portfolio?.by_account, accountNames]);
 
   const [includedAccounts, setIncludedAccounts] = useState<Set<string>>(new Set());
   useEffect(() => {
@@ -147,7 +167,7 @@ export default function Forecast() {
   }, [breakdown]);
 
   return (
-    <div>
+    <div style={{ width: "100%", minWidth: 0, maxWidth: "100%", overflow: "hidden" }}>
       <h1>Forecast</h1>
       <p style={{ color: "#71717a", marginBottom: "1rem" }}>
         Projected portfolio value using regression-based fair value for stocks and Bitcoin (and IBIT via Bitcoin model), property appreciation and mortgage payoff, margin debt interest, and cashflow bucket growth.
@@ -189,21 +209,23 @@ export default function Forecast() {
         </button>
       </div>
 
-      <div className="card">
+      <div className="card" style={{ maxWidth: "100%", overflow: "hidden" }}>
         <h2 style={{ marginTop: 0, marginBottom: "1rem", fontSize: "1.125rem" }}>Present-day net asset value (by account)</h2>
         {accountNames.length === 0 ? (
-          <p style={{ color: "#71717a" }}>No accounts with assets. Add accounts and assets to see breakdown.</p>
+          <div style={{ height: 320, display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <p style={{ color: "#71717a", margin: 0 }}>No accounts with assets. Add accounts and assets to see breakdown.</p>
+          </div>
         ) : (
           <>
             <p style={{ color: "#71717a", fontSize: "0.875rem", marginBottom: "0.75rem" }}>
               Click a legend label to include or exclude that account from the totals.
             </p>
-            <div style={{ height: 320 }}>
+            <div style={{ height: 320, minHeight: 320 }}>
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={presentDayBarData} margin={{ top: 8, right: 8, left: 8, bottom: 8 }}>
+                <BarChart data={presentDayBarData} margin={{ top: 8, right: 8, left: 56, bottom: 8 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#27272a" />
                   <XAxis dataKey="name" stroke="#71717a" />
-                  <YAxis stroke="#71717a" tickFormatter={(v) => `$${Number(v).toLocaleString()}`} />
+                  <YAxis stroke="#71717a" width={52} tickFormatter={(v) => `$${Number(v).toLocaleString()}`} />
                   <Tooltip
                     formatter={(v: number | undefined, name?: string) =>
                       name != null && !includedAccounts.has(name) ? null : [
@@ -217,8 +239,9 @@ export default function Forecast() {
                   <Legend
                     content={() => (
                       <div style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem", justifyContent: "center", marginTop: "0.5rem" }}>
-                        {accountNames.map((name, i) => {
+                        {accountNames.map((name) => {
                           const included = includedAccounts.has(name);
+                          const color = barChartColorFor(name);
                           return (
                             <button
                               key={name}
@@ -232,7 +255,7 @@ export default function Forecast() {
                                 fontSize: "0.8125rem",
                                 border: "1px solid #52525b",
                                 borderRadius: 4,
-                                background: included ? ACCOUNT_COLORS[i % ACCOUNT_COLORS.length] : "transparent",
+                                background: included ? color : "transparent",
                                 color: included ? "#0f0f12" : "#71717a",
                                 cursor: "pointer",
                                 opacity: included ? 1 : 0.55,
@@ -245,7 +268,7 @@ export default function Forecast() {
                                   height: 10,
                                   borderRadius: 2,
                                   background: included ? "currentColor" : "transparent",
-                                  border: `1px solid ${ACCOUNT_COLORS[i % ACCOUNT_COLORS.length]}`,
+                                  border: `1px solid ${color}`,
                                 }}
                               />
                               {name}
@@ -262,7 +285,7 @@ export default function Forecast() {
                         key={name}
                         dataKey={name}
                         stackId="nav"
-                        fill={ACCOUNT_COLORS[accountNames.indexOf(name) % ACCOUNT_COLORS.length]}
+                        fill={barChartColorFor(name)}
                         name={name}
                         hide={!included}
                         opacity={included ? 1 : 0}
@@ -281,19 +304,21 @@ export default function Forecast() {
         )}
       </div>
 
-      <div className="card">
+      <div className="card" style={{ maxWidth: "100%", overflow: "hidden" }}>
+        <p style={{ color: "#71717a", fontSize: "0.875rem", marginBottom: "0.75rem" }}>
+          Cumulative fair value over time: cashflow bucket (base) plus per-account portfolio value stacked on top. Click a legend label to include or exclude it.
+        </p>
+        <div style={{ height: 400, minHeight: 400 }}>
         {isLoading ? (
-          <div>Loading…</div>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%" }}>Loading…</div>
         ) : series.length === 0 ? (
-          <p style={{ color: "#71717a" }}>Run forecast to see projection.</p>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%" }}>
+            <p style={{ color: "#71717a", margin: 0 }}>Run forecast to see projection.</p>
+          </div>
         ) : (
           <>
-            <p style={{ color: "#71717a", fontSize: "0.875rem", marginBottom: "0.75rem" }}>
-              Cumulative fair value over time: cashflow bucket (base) plus per-account portfolio value stacked on top. Click a legend label to include or exclude it.
-            </p>
-            <div style={{ height: 400 }}>
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart
                   data={series.map((s) => {
                     const point: Record<string, unknown> = { ...s, ...(s.account_values ?? {}) };
                     forecastSeriesNames.forEach((name) => {
@@ -304,19 +329,18 @@ export default function Forecast() {
                     });
                     return point;
                   })}
-                  margin={{ top: 8, right: 8, left: 8, bottom: 8 }}
+                  margin={{ top: 8, right: 8, left: 56, bottom: 8 }}
                 >
                   <CartesianGrid strokeDasharray="3 3" stroke="#27272a" />
                   <XAxis dataKey="date" stroke="#71717a" />
-                  <YAxis stroke="#71717a" tickFormatter={(v) => `$${Number(v).toLocaleString()}`} />
+                  <YAxis stroke="#71717a" width={52} tickFormatter={(v) => `$${Number(v).toLocaleString()}`} />
                   <Tooltip
                     content={({ payload, label, active }) => {
                       if (!active || !payload?.length) return null;
                       const ordered = forecastSeriesNames
                         .map((name) => payload.find((p: { name?: string }) => p.name === name))
                         .filter((p): p is NonNullable<typeof p> => p != null && includedForecastSeries.has(p.name as string));
-                      const colorFor = (name: string) =>
-                        name === "Cashflow bucket" ? CASHFLOW_BUCKET_COLOR : ACCOUNT_COLORS[(forecastSeriesNames.indexOf(name) - 1) % ACCOUNT_COLORS.length];
+                      const colorFor = forecastColorFor;
                       return (
                         <div style={{ background: "#18181b", border: "1px solid #27272a", borderRadius: 6, padding: "0.5rem 0.75rem", fontSize: "0.8125rem" }}>
                           <div style={{ marginBottom: "0.35rem", color: "#a1a1aa" }}>{label}</div>
@@ -345,9 +369,9 @@ export default function Forecast() {
                   <Legend
                     content={() => (
                       <div style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem", justifyContent: "center", marginTop: "0.5rem" }}>
-                        {forecastSeriesNames.map((name, idx) => {
+                        {forecastSeriesNames.map((name) => {
                           const included = includedForecastSeries.has(name);
-                          const color = name === "Cashflow bucket" ? CASHFLOW_BUCKET_COLOR : ACCOUNT_COLORS[(idx - 1) % ACCOUNT_COLORS.length];
+                          const color = forecastColorFor(name);
                           return (
                             <button
                               key={name}
@@ -401,15 +425,15 @@ export default function Forecast() {
                         />
                       );
                     }
-                    const colorIndex = forecastSeriesNames.indexOf(name) - 1;
+                    const color = forecastColorFor(name);
                     return (
                       <Area
                         key={name}
                         type="monotone"
                         dataKey={name}
                         stackId="fv"
-                        fill={ACCOUNT_COLORS[colorIndex % ACCOUNT_COLORS.length]}
-                        stroke={ACCOUNT_COLORS[colorIndex % ACCOUNT_COLORS.length]}
+                        fill={color}
+                        stroke={color}
                         name={name}
                         opacity={included ? 1 : 0}
                         hide={!included}
@@ -417,8 +441,7 @@ export default function Forecast() {
                     );
                   })}
                 </AreaChart>
-              </ResponsiveContainer>
-            </div>
+            </ResponsiveContainer>
             {includedForecastSeries.size === 0 && (
               <p style={{ color: "#a1a1aa", fontSize: "0.875rem", marginTop: "0.5rem" }}>
                 All series excluded. Click a legend label above to include them in the chart.
@@ -426,6 +449,7 @@ export default function Forecast() {
             )}
           </>
         )}
+        </div>
       </div>
 
       {breakdown.length > 0 && (

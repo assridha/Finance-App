@@ -44,6 +44,13 @@ async def create_asset(account_id: int, data: AssetCreate, db: AsyncSession = De
     acc = r.scalar_one_or_none()
     if not acc:
         raise HTTPException(404, "Account not found")
+    if acc.type == AccountType.property:
+        existing = await db.execute(select(Asset).where(Asset.account_id == account_id))
+        if len(existing.scalars().all()) >= 1:
+            raise HTTPException(
+                400,
+                "A property account can have only one property. Create another account for another property.",
+            )
     asset = Asset(
         account_id=account_id,
         balance=data.balance,

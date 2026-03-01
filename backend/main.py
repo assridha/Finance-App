@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from db import init_db, get_db
 import models  # noqa: F401 - register tables
-from api import accounts, assets, cashflows, portfolio, prices, forecast, backup
+from api import accounts, assets, cashflows, portfolio, prices, forecast, backup, symbols
 from services.snapshot_service import take_snapshot
 
 
@@ -41,6 +41,7 @@ app.include_router(portfolio.router, prefix="/api")
 app.include_router(prices.router, prefix="/api")
 app.include_router(forecast.router, prefix="/api")
 app.include_router(backup.router, prefix="/api")
+app.include_router(symbols.router, prefix="/api")
 
 # Snapshot on-demand endpoint for portfolio history
 @app.post("/api/portfolio/snapshot")

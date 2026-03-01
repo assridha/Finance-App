@@ -22,6 +22,8 @@ uvicorn main:app --reload --app-dir .
 
 Database is created at `./data/finance.db` (or `DATA_DIR` env). API: http://127.0.0.1:8000
 
+On startup, the backend automatically adds the `accounts.color` column if it is missing (migration from pre-color schema). To start completely fresh during testing, delete the DB file (e.g. `rm backend/data/finance.db` or `rm ./data/finance.db`) and restart the backend so the schema is recreated.
+
 ### Frontend
 
 ```bash
@@ -51,6 +53,7 @@ From repo root, run backend in one terminal and frontend in another (or use a si
 - **Portfolio:** `GET /api/portfolio/current`, `GET /api/portfolio/history`, `POST /api/portfolio/snapshot`, `GET /api/portfolio/estimated-mortgage-payments`
 - **Prices:** `GET /api/prices` (optional query: `recalculate=SYM1,SYM2`), `POST /api/prices/recalculate`
 - **Forecast:** `POST /api/forecast`
+- **Symbols:** `GET /api/symbols/validate?symbol=AAPL` (validate ticker against Yahoo Finance)
 - **Backup:** `GET /api/backup/export`, `POST /api/backup/import` (requires `confirm=true` for restore)
 
 ## Features
@@ -95,3 +98,30 @@ The forecast projects your portfolio value year-by-year over a configurable hori
 
 - **series:** One row per year with `date`, `total_value`, `cashflow_bucket`, and `by_account` (and account names as keys for chart stacking).
 - **breakdown:** Per-asset, per-year rows with `type` (cash, brokerage, bitcoin, property, margin), `value`, and `details` (e.g. fair_price, floor_5, ceiling_95, shares, mortgage balances). Use this for “floor + VaR” style inspection (e.g. 5th percentile value at each horizon).
+
+## Changelog: Version 1.1.0
+
+- **Accounts**
+  - Account **color tag**: choose from a primary + darker palette in Add/Edit account forms; color shown as a circle next to each account in the list and used in Dashboard/Forecast charts.
+  - **Edit account**: name, currency, color; for brokerage: margin toggle and margin debt.
+  - **Delete account** with confirmation.
+  - Palette: circular swatches; primary colors (red, orange, amber, green, teal, blue, violet, pink) plus darker variants for better range.
+
+- **Assets**
+  - **Ticker validation** when adding brokerage assets (yfinance, cached).
+  - Asset **edit** with Save; Type column removed from assets table (type comes from account).
+  - **One property per account**: UI and API enforce a single property asset per property account.
+
+- **Property**
+  - Full **property edit form**: value, mortgage balance, rate, term, appreciation CAGR, payment.
+  - Property overview shows full real-estate parameters (not just value and mortgage).
+
+- **Portfolio & forecast**
+  - **Cascade updates**: creating/updating/deleting assets or accounts invalidates portfolio and forecast queries so Dashboard and Forecast reflect changes immediately.
+  - **Portfolio API** includes `color` in `by_account` so bar charts use account colors.
+  - **Forecast chart**: stable layout (fixed chart area height, content fits viewport); y-axis given enough left margin/width so large values (e.g. $1,000,000) are not cropped.
+  - **Dashboard** portfolio history chart: same y-axis margin fix.
+
+- **Backend**
+  - **DB migration**: adds `accounts.color` if missing (no manual migration needed for existing DBs).
+  - **Symbols**: `GET /api/symbols/validate?symbol=X` for ticker validation with caching.

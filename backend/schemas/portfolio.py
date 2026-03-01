@@ -7,6 +7,7 @@ class AccountValueItem(BaseModel):
     account_name: str
     value: float  # fair value
     market_value: float | None = None  # market price–based value
+    color: str | None = None
 
 
 class PortfolioCurrentResponse(BaseModel):

@@ -16,6 +16,7 @@ export interface Account {
   currency: string;
   is_margin: boolean;
   margin_debt: number | null;
+  color: string | null;
 }
 
 export interface Asset {
@@ -54,6 +55,11 @@ export const accountsApi = {
   delete: (id: number) => api.delete(`/accounts/${id}`),
 };
 
+export const symbolsApi = {
+  validate: (symbol: string) =>
+    api.get<{ valid: boolean; message?: string }>(`/symbols/validate`, { params: { symbol: symbol.trim().toUpperCase() } }).then((r) => r.data),
+};
+
 export const assetsApi = {
   list: (accountId: number) => api.get<Asset[]>(`/assets/account/${accountId}`).then((r) => r.data),
   create: (accountId: number, data: Partial<Asset>) =>
@@ -77,7 +83,7 @@ export const portfolioApi = {
       .get<{
         total_value: number;
         total_market_value?: number | null;
-        by_account: { account_id: number; account_name: string; value: number; market_value?: number | null }[];
+        by_account: { account_id: number; account_name: string; value: number; market_value?: number | null; color?: string | null }[];
         assets: unknown[];
       }>("/portfolio/current")
       .then((r) => r.data),

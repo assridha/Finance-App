@@ -60,10 +60,10 @@ export default function Dashboard() {
         ) : (
           <div style={{ height: 300 }}>
             <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={chartData}>
+              <LineChart data={chartData} margin={{ top: 8, right: 8, left: 56, bottom: 8 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#27272a" />
                 <XAxis dataKey="date" stroke="#71717a" />
-                <YAxis stroke="#71717a" tickFormatter={(v) => `$${v}`} />
+                <YAxis stroke="#71717a" width={52} tickFormatter={(v) => `$${v}`} />
                 <Tooltip formatter={(v: number | undefined) => [v != null ? `$${v.toLocaleString()}` : "—", "Value"]} />
                 <Line type="monotone" dataKey="total_value" stroke="#a78bfa" dot={false} />
               </LineChart>

@@ -24,6 +24,7 @@ async def get_portfolio_current(db: AsyncSession = Depends(get_db)):
                 account_name=x["account_name"],
                 value=x["value"],
                 market_value=x.get("market_value"),
+                color=x.get("color"),
             )
             for x in by_account
         ],

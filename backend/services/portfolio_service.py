@@ -169,6 +169,7 @@ async def compute_portfolio_current(db: AsyncSession, prices: dict[str, dict] | 
             "account_name": acc.name,
             "value": float(acc_value_fair),
             "market_value": float(acc_value_market),
+            "color": getattr(acc, "color", None),
         })
         total_fair += acc_value_fair
         total_market += acc_value_market

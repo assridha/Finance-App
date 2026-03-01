@@ -12,6 +12,7 @@ class ForecastSeriesAccountItem(BaseModel):
     account_id: int
     account_name: str
     value: float
+    color: str | None = None
 
 
 class ForecastSeriesItem(BaseModel):

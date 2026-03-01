@@ -21,6 +21,7 @@ class Account(Base):
     currency: Mapped[str] = mapped_column(String(10), default="USD")
     is_margin: Mapped[bool] = mapped_column(Boolean, default=False)
     margin_debt: Mapped[float | None] = mapped_column(Numeric(20, 4), default=0, nullable=True)
+    color: Mapped[str | None] = mapped_column(String(7), nullable=True)
 
     assets: Mapped[list["Asset"]] = relationship("Asset", back_populates="account", cascade="all, delete-orphan")
 
