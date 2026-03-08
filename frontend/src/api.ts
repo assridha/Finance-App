@@ -88,7 +88,7 @@ export const portfolioApi = {
       }>("/portfolio/current")
       .then((r) => r.data),
   history: (from?: string, to?: string) =>
-    api.get<{ history: { date: string; total_value: number }[] }>("/portfolio/history", { params: { from_date: from, to_date: to } }).then((r) => r.data),
+    api.get<{ history: { date: string; total_value: number; by_account?: { account_id: number; account_name: string; value: number }[] | null }[] }>("/portfolio/history", { params: { from_date: from, to_date: to } }).then((r) => r.data),
   snapshot: () => api.post<{ date: string; total_value: number }>("/portfolio/snapshot").then((r) => r.data),
   estimatedMortgagePayments: () =>
     api.get<{ payments: { account_name: string; asset_id: number; monthly_payment: number; mortgage_balance: number }[] }>("/portfolio/estimated-mortgage-payments").then((r) => r.data),

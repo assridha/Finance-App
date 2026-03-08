@@ -20,6 +20,7 @@ class PortfolioCurrentResponse(BaseModel):
 class PortfolioHistoryItem(BaseModel):
     date: str  # YYYY-MM-DD
     total_value: float
+    by_account: list[AccountValueItem] | None = None  # per-account breakdown when stored in snapshot
 
 
 class PortfolioHistoryResponse(BaseModel):

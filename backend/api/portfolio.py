@@ -1,3 +1,4 @@
+import json
 from datetime import date, timedelta
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -45,9 +46,22 @@ async def get_portfolio_history(
         q = q.where(PortfolioSnapshot.date <= to_date)
     r = await db.execute(q)
     rows = r.scalars().all()
-    return PortfolioHistoryResponse(
-        history=[PortfolioHistoryItem(date=s.date.isoformat(), total_value=float(s.total_value)) for s in rows]
-    )
+    history_items = []
+    for s in rows:
+        by_account = None
+        if s.breakdown_json:
+            try:
+                raw = json.loads(s.breakdown_json)
+                by_account = [
+                    AccountValueItem(account_id=x["account_id"], account_name=x["account_name"], value=float(x["value"]))
+                    for x in raw
+                ]
+            except (json.JSONDecodeError, KeyError, TypeError):
+                pass
+        history_items.append(
+            PortfolioHistoryItem(date=s.date.isoformat(), total_value=float(s.total_value), by_account=by_account)
+        )
+    return PortfolioHistoryResponse(history=history_items)
 
 
 @router.get("/estimated-mortgage-payments")

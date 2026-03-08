@@ -5,6 +5,7 @@ from sqlalchemy import select
 from db import get_db
 from models import Account
 from schemas.account import AccountCreate, AccountUpdate, AccountResponse
+from services.snapshot_service import rewrite_snapshots_after_account_delete
 
 router = APIRouter(prefix="/accounts", tags=["accounts"])
 
@@ -71,5 +72,6 @@ async def delete_account(account_id: int, db: AsyncSession = Depends(get_db)):
     acc = r.scalar_one_or_none()
     if not acc:
         raise HTTPException(404, "Account not found")
+    await rewrite_snapshots_after_account_delete(db, acc.id)
     await db.delete(acc)
     return None
