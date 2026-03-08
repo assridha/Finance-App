@@ -22,7 +22,7 @@ export default function Dashboard() {
     queryKey: ["portfolio", "current"],
     queryFn: portfolioApi.current,
   });
-  const { data: history, error: errorHistory } = useQuery({
+  const { data: history } = useQuery({
     queryKey: ["portfolio", "history"],
     queryFn: () => portfolioApi.history(),
   });
@@ -107,7 +107,7 @@ export default function Dashboard() {
           const byName = new Map(
             (h.by_account ?? [])
               .filter(
-                (a): a is { account_name: string; value: number; market_value?: number | null } =>
+                (a): a is { account_id: number; account_name: string; value: number; market_value?: number | null } =>
                   a != null && a.account_name != null
               )
               .map((a) => [a.account_name, ((a.market_value ?? a.value) ?? 0) * r])
@@ -329,7 +329,7 @@ export default function Dashboard() {
                   const byName = new Map(
                     (h.by_account ?? [])
                       .filter(
-                        (a): a is { account_name: string; value: number; market_value?: number | null } =>
+                        (a): a is { account_id: number; account_name: string; value: number; market_value?: number | null } =>
                           a != null && a.account_name != null
                       )
                       .map((a) => [a.account_name, ((a.market_value ?? a.value) ?? 0) * r])
