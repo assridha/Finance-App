@@ -58,6 +58,8 @@ The app is built with base path `/finance-app` so it works when Umbrel serves it
 
 Update `umbrel-app.yml` with your `developer`, `repo`, and `support` URLs before publishing.
 
+**Troubleshooting:** The community store app (`finance-asset-tracker`) uses port **8080** to avoid conflicts with other apps. If install fails, the GUI may not show logs—SSH into your Umbrel and run `docker compose -f /path/to/finance-asset-tracker/docker-compose.yml logs` (path depends on your Umbrel version) or check the app’s container logs in the Umbrel app data directory.
+
 ## API
 
 - **Health:** `GET /api/health`

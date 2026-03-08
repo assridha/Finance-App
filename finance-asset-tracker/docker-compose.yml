@@ -5,7 +5,7 @@ services:
     image: busybox:latest
     environment:
       APP_HOST: finance-asset-tracker_web_1
-      APP_PORT: "8000"
+      APP_PORT: "8080"
 
   web:
     build: .
