@@ -1,7 +1,8 @@
 from datetime import datetime
 from pathlib import Path
 from fastapi import APIRouter, Depends, UploadFile, HTTPException
-from fastapi.responses import FileResponse, StreamingResponse
+from fastapi.responses import FileResponse
+from sqlalchemy import delete
 from sqlalchemy.ext.asyncio import AsyncSession
 import os
 import shutil
@@ -9,6 +10,7 @@ import tempfile
 
 from db import get_db
 from config import get_database_url
+from models import Account, Cashflow, PortfolioSnapshot, PriceModel
 
 router = APIRouter(prefix="/backup", tags=["backup"])
 
@@ -53,3 +55,18 @@ async def import_backup(
     except Exception as e:
         raise HTTPException(500, str(e))
     return {"status": "ok", "message": "Database restored. Reload the app."}
+
+
+@router.post("/delete-all", status_code=204)
+async def delete_all_data(
+    confirm: bool = False,
+    db: AsyncSession = Depends(get_db),
+):
+    """Delete all account data: portfolio snapshots, cashflows, accounts (cascade to assets and history), and price models. Requires confirm=true."""
+    if not confirm:
+        raise HTTPException(400, "Set confirm=true to delete all data")
+    await db.execute(delete(PortfolioSnapshot))
+    await db.execute(delete(Cashflow))
+    await db.execute(delete(Account))
+    await db.execute(delete(PriceModel))
+    return None

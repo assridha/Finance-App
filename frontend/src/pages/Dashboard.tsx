@@ -95,9 +95,6 @@ export default function Dashboard() {
     });
   };
 
-  if (loadingCurrent) return <div>Loading…</div>;
-  if (errorCurrent) return <div className="card" style={{ color: "#f87171" }}>Failed to load portfolio: {(errorCurrent as Error).message}</div>;
-
   const hasBreakdown = historyList.some((h) => (h?.by_account?.length ?? 0) > 0);
   const chartData = useMemo(() => {
     try {
@@ -129,6 +126,9 @@ export default function Dashboard() {
       return [];
     }
   }, [hasBreakdown, allChartAccountNames, historyList, includedAccounts, ratesByDate]);
+
+  if (loadingCurrent) return <div>Loading…</div>;
+  if (errorCurrent) return <div className="card" style={{ color: "#f87171" }}>Failed to load portfolio: {(errorCurrent as Error).message}</div>;
 
   return (
     <div>

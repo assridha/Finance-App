@@ -10,6 +10,8 @@ export default function Settings() {
   const fileRef = useRef<HTMLInputElement>(null);
   const [confirmRestore, setConfirmRestore] = useState(false);
   const [restoreMessage, setRestoreMessage] = useState("");
+  const [confirmDeleteAll, setConfirmDeleteAll] = useState(false);
+  const [deleteAllMessage, setDeleteAllMessage] = useState("");
   const { displayCurrency, setDisplayCurrency } = useDisplayCurrency();
   const { defaultDebtInterestRate, setDefaultDebtInterestRate } = useDefaultDebtInterestRate();
 
@@ -32,6 +34,21 @@ export default function Settings() {
       return;
     }
     importMutation.mutate({ file, confirm: confirmRestore });
+  };
+
+  const deleteAllMutation = useMutation({
+    mutationFn: (confirm: boolean) => backupApi.deleteAllData(confirm),
+    onSuccess: () => {
+      setDeleteAllMessage("All data deleted. Reload the page.");
+      setConfirmDeleteAll(false);
+    },
+    onError: (err: Error) => {
+      setDeleteAllMessage(axios.isAxiosError(err) ? (err.response?.data?.detail || err.message) : err.message);
+    },
+  });
+
+  const handleDeleteAll = () => {
+    deleteAllMutation.mutate(confirmDeleteAll);
   };
 
   return (
@@ -96,6 +113,28 @@ export default function Settings() {
           {importMutation.isPending ? "Restoring…" : "Restore"}
         </button>
         {restoreMessage && <p style={{ marginTop: "1rem", color: restoreMessage.startsWith("Restore") ? "#22c55e" : "#f87171" }}>{restoreMessage}</p>}
+      </div>
+      <div className="card">
+        <h3 style={{ marginTop: 0 }}>Delete all account data</h3>
+        <p style={{ color: "#71717a" }}>Permanently delete all accounts, assets, cashflows, and portfolio history. This cannot be undone.</p>
+        <label>
+          <input type="checkbox" checked={confirmDeleteAll} onChange={(e) => setConfirmDeleteAll(e.target.checked)} />
+          I confirm I want to delete all accounts, assets, cashflows, and portfolio history
+        </label>
+        <br />
+        <button
+          type="button"
+          onClick={handleDeleteAll}
+          disabled={deleteAllMutation.isPending || !confirmDeleteAll}
+          style={{ marginTop: "0.5rem", backgroundColor: "#dc2626", color: "white" }}
+        >
+          {deleteAllMutation.isPending ? "Deleting…" : "Delete all data"}
+        </button>
+        {deleteAllMessage && (
+          <p style={{ marginTop: "1rem", color: deleteAllMessage.startsWith("All data") ? "#22c55e" : "#f87171" }}>
+            {deleteAllMessage}
+          </p>
+        )}
       </div>
     </div>
   );

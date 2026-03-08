@@ -201,6 +201,7 @@ export const backupApi = {
     form.append("file", file);
     return api.post("/backup/import", form, { params: { confirm }, headers: { "Content-Type": "multipart/form-data" } });
   },
+  deleteAllData: (confirm: boolean) => api.post("/backup/delete-all", null, { params: { confirm } }),
 };
 
 export const fxApi = {
