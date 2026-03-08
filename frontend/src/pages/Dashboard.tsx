@@ -30,9 +30,11 @@ export default function Dashboard() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["portfolio"] }),
   });
 
-  const byAccount = current?.by_account ?? [];
+  const byAccount = (current?.by_account ?? []).filter(
+    (a): a is NonNullable<typeof a> & { account_name: string } => a != null && a.account_name != null
+  );
   const accountNames = byAccount.map((a) => a.account_name);
-  const historyList = history?.history ?? [];
+  const historyList = (history?.history ?? []).filter((h): h is NonNullable<typeof h> => h != null);
   const uniqueDates = useMemo(() => [...new Set(historyList.map((h) => h.date))], [historyList]);
   const historicalRateQueries = useQueries({
     queries:
@@ -53,9 +55,13 @@ export default function Dashboard() {
     });
     return map;
   }, [displayCurrency, uniqueDates, historicalRateQueries]);
+  const safeByAccount = (list: { by_account?: { account_name: string; value: number }[] | null }[] | undefined) =>
+    (list ?? []).flatMap((h) => (h.by_account ?? []).filter((a) => a != null && a.account_name != null));
   const historyOnlyNames = Array.from(
     new Set(
-      historyList.flatMap((h) => (h.by_account ?? []).map((a) => a.account_name)).filter((n) => !accountNames.includes(n))
+      safeByAccount(historyList)
+        .map((a) => a.account_name)
+        .filter((n) => !accountNames.includes(n))
     )
   );
   const allChartAccountNames = [...accountNames, ...historyOnlyNames];
@@ -90,21 +96,29 @@ export default function Dashboard() {
   if (loadingCurrent) return <div>Loading…</div>;
   if (errorCurrent) return <div className="card" style={{ color: "#f87171" }}>Failed to load portfolio: {(errorCurrent as Error).message}</div>;
 
-  const hasBreakdown = historyList.some((h) => h.by_account && h.by_account.length > 0);
+  const hasBreakdown = historyList.some((h) => (h?.by_account?.length ?? 0) > 0);
   const chartData = useMemo(() => {
-    const rateFor = (date: string) => ratesByDate[date] ?? 1;
-    if (hasBreakdown && allChartAccountNames.length > 0) {
-      return historyList.map((h) => {
-        const r = rateFor(h.date);
-        const row: Record<string, string | number> = { date: h.date, total_value: h.total_value * r };
-        const byName = new Map((h.by_account ?? []).map((a) => [a.account_name, a.value * r]));
-        allChartAccountNames.forEach((name) => {
-          row[name] = includedAccounts.has(name) ? (byName.get(name) ?? 0) : 0;
+    try {
+      const rateFor = (date: string) => ratesByDate[date] ?? 1;
+      if (hasBreakdown && allChartAccountNames.length > 0) {
+        return historyList.map((h) => {
+          const r = rateFor(h.date);
+          const row: Record<string, string | number> = { date: h.date, total_value: Number(h.total_value) * r };
+          const byName = new Map(
+            (h.by_account ?? [])
+              .filter((a): a is { account_name: string; value: number } => a != null && a.account_name != null)
+              .map((a) => [a.account_name, (a.value ?? 0) * r])
+          );
+          allChartAccountNames.forEach((name) => {
+            row[name] = includedAccounts.has(name) ? (byName.get(name) ?? 0) : 0;
+          });
+          return row;
         });
-        return row;
-      });
+      }
+      return historyList.map((h) => ({ date: h.date, total_value: Number(h.total_value) * rateFor(h.date) }));
+    } catch {
+      return [];
     }
-    return historyList.map((h) => ({ date: h.date, total_value: h.total_value * rateFor(h.date) }));
   }, [hasBreakdown, allChartAccountNames, historyList, includedAccounts, ratesByDate]);
 
   return (
@@ -129,11 +143,11 @@ export default function Dashboard() {
           {snapshot.isPending ? "Saving…" : "Save snapshot"}
         </button>
       </div>
-      {current?.by_account?.length ? (
+      {byAccount.length > 0 ? (
         <div className="card">
           <h3 style={{ marginTop: 0 }}>By account</h3>
           <ul style={{ margin: 0, paddingLeft: "1.25rem" }}>
-            {current.by_account.map((a, i) => {
+            {byAccount.map((a, i) => {
               const account = accounts.find((ac) => ac.id === a.account_id);
               const emoji = account ? ACCOUNT_TYPE_EMOJI[account.type] : "💼";
               const color = a.color ?? ACCOUNT_COLOR_FALLBACKS[i % ACCOUNT_COLOR_FALLBACKS.length];
@@ -296,7 +310,11 @@ export default function Dashboard() {
               <tbody>
                 {[...historyList].reverse().map((h) => {
                   const r = ratesByDate[h.date] ?? 1;
-                  const byName = new Map((h.by_account ?? []).map((a) => [a.account_name, a.value * r]));
+                  const byName = new Map(
+                    (h.by_account ?? [])
+                      .filter((a): a is { account_name: string; value: number } => a != null && a.account_name != null)
+                      .map((a) => [a.account_name, (a.value ?? 0) * r])
+                  );
                   return (
                     <tr key={h.date} style={{ borderBottom: "1px solid #27272a" }}>
                       <td style={{ padding: "0.5rem 0.75rem" }}>{h.date}</td>
