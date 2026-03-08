@@ -38,11 +38,25 @@ Uses Vite proxy to `/api` → backend. Open http://localhost:5173
 
 From repo root, run backend in one terminal and frontend in another (or use a single command that starts both).
 
-## Umbrel
+## Run on Umbrel
 
-- Copy the app directory to your Umbrel app store (or use the Umbrel app repo format).
-- Build: `docker build -t finance-app .`
-- Data is stored in `${APP_DATA_DIR}/data` (SQLite). Backup via Settings in the UI.
+The app is built with base path `/finance-app` so it works when Umbrel serves it at `https://<umbrel>/finance-app/`. Data is stored in `${APP_DATA_DIR}/data` (SQLite). Backup via Settings in the UI.
+
+### Option A: Install on your Umbrel server manually
+
+1. Push this repo to GitHub (or have the app directory available to your Umbrel node).
+2. On Umbrel: if your version supports **Install custom app**, add the repo URL and install. Otherwise, copy the app folder (with `Dockerfile`, `docker-compose.yml`, `umbrel-app.yml`, `backend/`, `frontend/`) into your Umbrel app store directory (e.g. `~/umbrel/app-stores/<store-id>/finance-app`).
+3. For local `docker compose` without Umbrel, set the data dir: `APP_DATA_DIR=. docker compose up --build`. Umbrel sets `APP_DATA_DIR` automatically when running the app.
+4. Build and run: `docker build -t finance-app .` and start via Umbrel (or `docker compose up` with `APP_DATA_DIR` set).
+
+### Option B: Community app store
+
+1. Fork [getumbrel/umbrel-community-app-store](https://github.com/getumbrel/umbrel-community-app-store).
+2. Add a subfolder `finance-app` with `umbrel-app.yml`, `docker-compose.yml`, and either a `Dockerfile` plus app source or a reference to this repo (see the community store template for how apps are listed).
+3. Add the app to the store manifest so it appears in the store.
+4. In Umbrel, add your fork as a **Community App Store**, then install **Personal Finance Asset Tracker** from it.
+
+Update `umbrel-app.yml` with your `developer`, `repo`, and `support` URLs before publishing.
 
 ## API
 

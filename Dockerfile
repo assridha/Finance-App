@@ -4,6 +4,7 @@ WORKDIR /app/frontend
 COPY frontend/package.json frontend/package-lock.json* ./
 RUN npm ci
 COPY frontend/ ./
+ENV VITE_BASE_PATH=/finance-app
 RUN npm run build
 
 # Stage 2: backend + serve frontend

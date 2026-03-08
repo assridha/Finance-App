@@ -9,12 +9,12 @@ description: >-
   Record quantity history, income and expenses with duration, and view live prices
   via yfinance. Forecast engine uses floor + VaR models, property appreciation
   and mortgage, margin debt interest, and a cashflow bucket.
-releaseNotes: ""
+releaseNotes: "Initial release. Track assets, cashflows, portfolio, and forecast with floor + VaR."
 developer: ""
 website: ""
 dependencies: []
-repo: ""
-support: ""
+repo: "https://github.com/yourusername/Finance-App"
+support: "https://github.com/yourusername/Finance-App/issues"
 port: 8000
 gallery: []
 path: ""

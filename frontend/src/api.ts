@@ -1,7 +1,7 @@
 import axios from "axios";
 
 const api = axios.create({
-  baseURL: "/api",
+  baseURL: `${import.meta.env.VITE_BASE_PATH || ""}/api`,
   headers: { "Content-Type": "application/json" },
 });
 
@@ -195,7 +195,7 @@ export const priceModelsApi = {
 };
 
 export const backupApi = {
-  exportUrl: () => "/api/backup/export",
+  exportUrl: () => `${import.meta.env.VITE_BASE_PATH || ""}/api/backup/export`,
   import: (file: File, confirm: boolean) => {
     const form = new FormData();
     form.append("file", file);

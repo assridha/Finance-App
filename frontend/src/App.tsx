@@ -21,7 +21,7 @@ function App() {
     <QueryClientProvider client={queryClient}>
       <DisplayCurrencyProvider>
         <DefaultDebtInterestRateProvider>
-          <BrowserRouter>
+          <BrowserRouter basename={import.meta.env.VITE_BASE_PATH || ""}>
             <Routes>
               <Route path="/" element={<Layout />}>
                 <Route index element={<Dashboard />} />
