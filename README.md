@@ -58,7 +58,48 @@ The app is built with base path `/finance-app` so it works when Umbrel serves it
 
 Update `umbrel-app.yml` with your `developer`, `repo`, and `support` URLs before publishing.
 
-**Troubleshooting:** The community store app (`finance-asset-tracker`) uses port **8080** to avoid conflicts with other apps. If install fails, the GUI may not show logs—SSH into your Umbrel and run `docker compose -f /path/to/finance-asset-tracker/docker-compose.yml logs` (path depends on your Umbrel version) or check the app’s container logs in the Umbrel app data directory.
+### I don't see the app at all
+
+- **Add the repo as a Community App Store** (not “Install from URL”). In the Umbrel dashboard go to **App Store**, then find the option to **add a store** or **add community store** (on UmbrelOS 1.5 this may be under **Settings → App Store** or a “+” / “Add store” in the App Store view). Paste the **repository URL**:
+  - `https://github.com/assridha/Finance-App`
+  - If you use a fork, use your fork’s URL (e.g. `https://github.com/YOUR_USERNAME/Finance-App`). Some Umbrel versions also accept the `.git` form: `https://github.com/assridha/Finance-App.git`.
+- **Where the app appears:** The app is **not** in the main “Umbrel” / official store. After adding the store, a **second store** named **“Finance”** (from `umbrel-app-store.yml`) should appear. Open that **Finance** store and you should see **Personal Finance Asset Tracker**.
+- **If “Finance” doesn’t appear:** Remove the added store URL and add it again, then refresh the App Store page. Ensure the repo’s default branch is `main` and that `umbrel-app-store.yml` and the `finance-asset-tracker/` folder are at the **root** of the repo (this repo is already structured that way).
+- **If you only have “Install from URL”:** That flow is for a single-app repo. For this repo (which is a **store** with one app), you must add it as a **Community App Store** so Umbrel shows the “Finance” store and the app inside it.
+
+**Troubleshooting:** The community store app (`finance-asset-tracker`) uses port **8080** to avoid conflicts with other apps.
+
+### How to see the error log when install fails
+
+The Umbrel GUI often doesn’t show why an app failed to install. Use the **built-in terminal** (no SSH required):
+
+1. **Open the terminal**  
+   In the Umbrel dashboard: **Settings → Advanced settings → Open** → under **Terminal** click **Open** → choose **umbrelOS**.  
+   **Use `sudo` for Docker:** e.g. `sudo docker ps -a`, `sudo docker logs ...`, `sudo docker compose logs`.
+
+2. **List containers** (including stopped/failed ones):
+   ```bash
+   sudo docker ps -a
+   ```
+   Look for a container whose name contains `finance-asset-tracker` (e.g. `finance-asset-tracker_web_1`).
+
+3. **View that container’s logs** (replace `<container_name>` with the name from step 2):
+   ```bash
+   sudo docker logs <container_name>
+   ```
+   Example: `sudo docker logs finance-asset-tracker_web_1`
+
+4. **If no container appears**, the failure may be during build or compose. Try:
+   - **Compose logs** from the app’s data directory (paths vary by Umbrel version; common base is `~/umbrel` or `/home/umbrel/umbrel`):
+     ```bash
+     cd ~/umbrel/app-data/finance-asset-tracker
+     sudo docker compose logs
+     ```
+     If that path doesn’t exist, list app data dirs: `ls ~/umbrel/app-data/` or `ls /umbrel/app-data/`.
+   - **Umbrel debug script** (if available): `sudo ~/umbrel/scripts/debug` or `sudo /umbrel/scripts/debug` to capture system and Docker state.
+
+5. **Optional: install from terminal**  
+   Some users get further by installing from the CLI (see Umbrel docs for your version), e.g. something like: `sudo ./scripts/app install finance-asset-tracker` from the Umbrel repo directory.
 
 ## API
 
