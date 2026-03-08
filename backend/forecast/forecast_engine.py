@@ -9,6 +9,7 @@ from sqlalchemy.orm import selectinload
 from models import Account, Asset, Cashflow, AccountType, CashflowType, CashflowFrequency
 from services.yfinance_service import get_prices
 from services.price_model_service import get_or_compute_model, get_fair_floor_ceiling_at_date
+from services.fx_service import amount_to_usd
 from forecast.property_forecast import (
     property_value_path,
     annuity_payment,
@@ -22,6 +23,8 @@ def _asset_label(acc: Account, a: Asset) -> str:
         return f"{acc.name} (Cash)"
     if acc.type == AccountType.brokerage and a.symbol:
         return f"{acc.name} – {a.symbol}"
+    if acc.type == AccountType.brokerage and a.balance is not None:
+        return f"{acc.name} (Margin debt)" if float(a.balance) < 0 else f"{acc.name} (Cash)"
     if acc.type == AccountType.bitcoin:
         return f"{acc.name} (BTC)"
     if acc.type == AccountType.property:
@@ -74,9 +77,9 @@ async def run_forecast(
             for y in range(today.year, today.year + int(horizon_years) + 1):
                 mortgage_payments_by_year[y] += pay * 12  # annual
 
-    # Net cashflow per year (income - expenses - mortgage payments)
+    # Net cashflow per year (income - expenses - mortgage payments), in USD
     def net_cashflow_for_year(y: int) -> float:
-        total = 0.0
+        total_usd = 0.0
         for cf in cashflows:
             if cf.start_date.year > y or (cf.end_date and cf.end_date.year < y):
                 continue
@@ -86,15 +89,16 @@ async def run_forecast(
                 amt = float(cf.amount) * 12
             else:
                 amt = float(cf.amount) * 52
+            amt_usd = amount_to_usd(amt, getattr(cf, "currency", None))
             if cf.type == CashflowType.income:
-                total += amt
+                total_usd += amt_usd
             else:
-                total -= amt
-        total -= mortgage_payments_by_year.get(y, 0)
-        return total
+                total_usd -= amt_usd
+        total_usd -= mortgage_payments_by_year.get(y, 0)
+        return total_usd
 
-    def _round_details(d: dict[str, float]) -> dict[str, float]:
-        return {k: round(v, 4) for k, v in d.items()}
+    def _round_details(d: dict[str, Any]) -> dict[str, Any]:
+        return {k: round(v, 4) if isinstance(v, (int, float)) else v for k, v in d.items()}
 
     # Build yearly series and per-asset, per-year breakdown
     result = []
@@ -112,16 +116,47 @@ async def run_forecast(
             acc_value = 0.0
             for a in acc.assets:
                 if acc.type == AccountType.cash and a.balance is not None:
-                    val = float(a.balance)
-                    acc_value += val
+                    balance_usd = amount_to_usd(float(a.balance), getattr(a, "currency", None) or getattr(acc, "currency", None))
+                    acc_value += balance_usd
                     breakdown.append({
                         "year": d.year,
                         "date": date_str,
                         "label": _asset_label(acc, a),
                         "type": "cash",
-                        "value": round(val, 2),
-                        "details": _round_details({"balance": val}),
+                        "value": round(balance_usd, 2),
+                        "details": _round_details({"balance": balance_usd, "currency": (getattr(a, "currency", None) or getattr(acc, "currency", None)) or "USD"}),
                     })
+                elif acc.type == AccountType.brokerage and a.balance is not None and not a.symbol:
+                    balance_raw = float(a.balance)
+                    currency = getattr(a, "currency", None) or getattr(acc, "currency", None)
+                    if balance_raw < 0:
+                        debt_usd = amount_to_usd(balance_raw, currency)
+                        val_at_year_usd = debt_usd * ((1 + margin_interest_rate) ** year_offset)
+                        acc_value += val_at_year_usd
+                        breakdown.append({
+                            "year": d.year,
+                            "date": date_str,
+                            "label": _asset_label(acc, a),
+                            "type": "margin",
+                            "value": round(val_at_year_usd, 2),
+                            "details": _round_details({
+                                "balance_start": balance_raw,
+                                "currency": currency or "USD",
+                                "margin_interest_rate": margin_interest_rate,
+                                "balance_at_year_usd": val_at_year_usd,
+                            }),
+                        })
+                    else:
+                        balance_usd = amount_to_usd(balance_raw, currency)
+                        acc_value += balance_usd
+                        breakdown.append({
+                            "year": d.year,
+                            "date": date_str,
+                            "label": _asset_label(acc, a),
+                            "type": "cash",
+                            "value": round(balance_usd, 2),
+                            "details": _round_details({"balance": balance_usd, "currency": currency or "USD"}),
+                        })
                 elif acc.type == AccountType.brokerage and a.symbol and a.shares is not None:
                     sym = a.symbol
                     bands = await get_fair_floor_ceiling_at_date(db, sym, d)
@@ -199,21 +234,6 @@ async def run_forecast(
                         }),
                     })
 
-            if acc.is_margin and acc.margin_debt is not None and float(acc.margin_debt) > 0:
-                debt = float(acc.margin_debt) * ((1 + margin_interest_rate) ** year_offset)
-                acc_value -= debt
-                breakdown.append({
-                    "year": d.year,
-                    "date": date_str,
-                    "label": f"{acc.name} (Margin debt)",
-                    "type": "margin",
-                    "value": round(-debt, 2),
-                    "details": _round_details({
-                        "margin_debt_start": float(acc.margin_debt),
-                        "margin_interest_rate": margin_interest_rate,
-                        "margin_debt_at_year": debt,
-                    }),
-                })
             portfolio_value += acc_value
             by_account.append({"account_id": acc.id, "account_name": acc.name, "value": round(acc_value, 2), "color": getattr(acc, "color", None)})
 

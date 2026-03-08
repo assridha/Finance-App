@@ -22,8 +22,6 @@ async def create_account(data: AccountCreate, db: AsyncSession = Depends(get_db)
         name=data.name,
         type=data.type,
         currency=data.currency,
-        is_margin=data.is_margin,
-        margin_debt=data.margin_debt if data.is_margin else None,
         color=data.color,
     )
     db.add(acc)
@@ -51,14 +49,6 @@ async def update_account(account_id: int, data: AccountUpdate, db: AsyncSession 
         acc.name = data.name
     if data.currency is not None:
         acc.currency = data.currency
-    if data.is_margin is not None:
-        acc.is_margin = data.is_margin
-        if not data.is_margin:
-            acc.margin_debt = None
-    if data.margin_debt is not None and acc.is_margin:
-        from models import AccountMarginHistory
-        acc.margin_debt = data.margin_debt
-        db.add(AccountMarginHistory(account_id=acc.id, margin_debt=float(acc.margin_debt)))
     if data.color is not None:
         acc.color = data.color
     await db.flush()

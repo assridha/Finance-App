@@ -6,16 +6,12 @@ class AccountCreate(BaseModel):
     name: str
     type: AccountType
     currency: str = "USD"
-    is_margin: bool = False
-    margin_debt: float | None = None
     color: str | None = None
 
 
 class AccountUpdate(BaseModel):
     name: str | None = None
     currency: str | None = None
-    is_margin: bool | None = None
-    margin_debt: float | None = None
     color: str | None = None
 
 
@@ -24,8 +20,6 @@ class AccountResponse(BaseModel):
     name: str
     type: AccountType
     currency: str
-    is_margin: bool
-    margin_debt: float | None
     color: str | None = None
 
     class Config:

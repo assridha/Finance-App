@@ -28,10 +28,11 @@ class ForecastBreakdownItem(BaseModel):
     date: str
     label: str
     type: str  # cash | brokerage | bitcoin | property | margin
-    value: float
-    details: dict[str, float] = {}
+    value: float  # USD
+    details: dict[str, float | str] = {}  # numeric values in USD; may include "currency" for display
 
 
 class ForecastResponse(BaseModel):
+    unit_of_account: str = "USD"  # all value fields in series and breakdown are in USD
     series: list[ForecastSeriesItem]
     breakdown: list[ForecastBreakdownItem] = []

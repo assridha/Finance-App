@@ -11,10 +11,11 @@ class AccountValueItem(BaseModel):
 
 
 class PortfolioCurrentResponse(BaseModel):
-    total_value: float  # fair value total
-    total_market_value: float | None = None  # market price total (when different)
+    unit_of_account: str = "USD"  # all value/price fields in this response are in USD
+    total_value: float  # fair value total (USD)
+    total_market_value: float | None = None  # market price total (USD)
     by_account: list[AccountValueItem]
-    assets: list[dict]  # per-asset value breakdown (value=fair, market_value, fair_price, market_price)
+    assets: list[dict]  # per-asset value breakdown (value, market_value in USD)
 
 
 class PortfolioHistoryItem(BaseModel):
@@ -24,6 +25,7 @@ class PortfolioHistoryItem(BaseModel):
 
 
 class PortfolioHistoryResponse(BaseModel):
+    unit_of_account: str = "USD"  # all value fields in history are in USD
     history: list[PortfolioHistoryItem]
 
 
@@ -42,4 +44,5 @@ class PriceItem(BaseModel):
 
 
 class PriceResponse(BaseModel):
+    unit_of_account: str = "USD"  # price, fair_value, floor_5, ceiling_95 are in USD
     prices: dict[str, PriceItem]  # symbol -> PriceItem

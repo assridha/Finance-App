@@ -19,6 +19,7 @@ class Account(Base):
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     type: Mapped[AccountType] = mapped_column(Enum(AccountType), nullable=False)
     currency: Mapped[str] = mapped_column(String(10), default="USD")
+    # Deprecated: margin is now represented as brokerage cash assets (balance < 0). Columns kept for DB compatibility.
     is_margin: Mapped[bool] = mapped_column(Boolean, default=False)
     margin_debt: Mapped[float | None] = mapped_column(Numeric(20, 4), default=0, nullable=True)
     color: Mapped[str | None] = mapped_column(String(7), nullable=True)

@@ -14,8 +14,6 @@ export interface Account {
   name: string;
   type: AccountType;
   currency: string;
-  is_margin: boolean;
-  margin_debt: number | null;
   color: string | null;
 }
 
@@ -92,6 +90,15 @@ export const portfolioApi = {
   snapshot: () => api.post<{ date: string; total_value: number }>("/portfolio/snapshot").then((r) => r.data),
   estimatedMortgagePayments: () =>
     api.get<{ payments: { account_name: string; asset_id: number; monthly_payment: number; mortgage_balance: number }[] }>("/portfolio/estimated-mortgage-payments").then((r) => r.data),
+  cashDebtInterest: (marginInterestRate?: number) =>
+    api
+      .get<{
+        unit_of_account: string;
+        total_monthly_interest_usd: number;
+        margin_interest_rate: number;
+        by_account: { account_id: number; account_name: string; monthly_interest_usd: number; debt_balance_usd: number }[];
+      }>("/portfolio/cash-debt-interest", { params: marginInterestRate != null ? { margin_interest_rate: marginInterestRate } : undefined })
+      .then((r) => r.data),
 };
 
 export interface PriceItem {

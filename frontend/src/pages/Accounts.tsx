@@ -9,6 +9,21 @@ const ACCOUNT_TYPE_LABELS: Record<AccountType, { emoji: string; label: string }>
   property: { emoji: "🏠", label: "property" },
 };
 
+// Supported currencies for cash balance (most-used first). Code is 3-letter ISO.
+const CURRENCY_OPTIONS: { code: string; label: string }[] = [
+  { code: "USD", label: "USD – US Dollar" },
+  { code: "EUR", label: "EUR – Euro" },
+  { code: "JPY", label: "JPY – Japanese Yen" },
+  { code: "INR", label: "INR – Indian Rupee" },
+  { code: "GBP", label: "GBP – British Pound" },
+  { code: "CHF", label: "CHF – Swiss Franc" },
+  { code: "CAD", label: "CAD – Canadian Dollar" },
+  { code: "AUD", label: "AUD – Australian Dollar" },
+  { code: "CNY", label: "CNY – Chinese Yuan" },
+  { code: "SGD", label: "SGD – Singapore Dollar" },
+  { code: "HKD", label: "HKD – Hong Kong Dollar" },
+];
+
 // Primary colors (distinct hues) + darker variants for range and contrast
 const ACCOUNT_COLOR_PALETTE = [
   "#ef4444", "#b91c1c", // red, red dark
@@ -183,12 +198,6 @@ export default function Accounts() {
                   <button className="primary" onClick={() => setShowAddAsset(true)}>Add asset</button>
                 )}
               </div>
-              {selectedAccount.type === "brokerage" && selectedAccount.is_margin && (
-                <MarginDebtForm
-                  value={selectedAccount.margin_debt ?? 0}
-                  onSave={(v) => updateAccount.mutate({ id: selectedAccount.id, data: { margin_debt: v } })}
-                />
-              )}
               {showAddAsset && selectedAccount && (
                 <AddAssetForm
                   accountType={selectedAccount.type}
@@ -227,14 +236,12 @@ function AddAccountForm({
   onSave,
   onCancel,
 }: {
-  onSave: (data: { name: string; type: AccountType; currency: string; is_margin: boolean; margin_debt?: number; color?: string | null }) => void;
+  onSave: (data: { name: string; type: AccountType; currency: string; color?: string | null }) => void;
   onCancel: () => void;
 }) {
   const [name, setName] = useState("");
   const [type, setType] = useState<AccountType>("cash");
   const [currency, setCurrency] = useState("USD");
-  const [is_margin, setIsMargin] = useState(false);
-  const [margin_debt, setMarginDebt] = useState("");
   const [color, setColor] = useState<string | null>(null);
   return (
     <div className="card" style={{ marginBottom: "1rem" }}>
@@ -248,7 +255,11 @@ function AddAccountForm({
         <option value="property">Property</option>
       </select>
       <label>Currency</label>
-      <input value={currency} onChange={(e) => setCurrency(e.target.value)} />
+      <select value={currency} onChange={(e) => setCurrency(e.target.value)}>
+        {CURRENCY_OPTIONS.map((c) => (
+          <option key={c.code} value={c.code}>{c.label}</option>
+        ))}
+      </select>
       <label>Color</label>
       <div style={{ display: "flex", flexWrap: "wrap", gap: 6, alignItems: "center" }}>
         {ACCOUNT_COLOR_PALETTE.map((hex) => (
@@ -293,19 +304,8 @@ function AddAccountForm({
           —
         </button>
       </div>
-      {type === "brokerage" && (
-        <>
-          <label><input type="checkbox" checked={is_margin} onChange={(e) => setIsMargin(e.target.checked)} /> Margin account</label>
-          {is_margin && (
-            <>
-              <label>Margin debt</label>
-              <input type="number" value={margin_debt} onChange={(e) => setMarginDebt(e.target.value)} placeholder="0" />
-            </>
-          )}
-        </>
-      )}
       <div style={{ marginTop: "1rem", display: "flex", gap: "0.5rem" }}>
-        <button className="primary" onClick={() => onSave({ name, type, currency, is_margin, margin_debt: is_margin && margin_debt ? parseFloat(margin_debt) : undefined, color })}>Save</button>
+        <button className="primary" onClick={() => onSave({ name, type, currency, color })}>Save</button>
         <button onClick={onCancel}>Cancel</button>
       </div>
     </div>
@@ -323,8 +323,6 @@ function EditAccountForm({
 }) {
   const [name, setName] = useState(account.name);
   const [currency, setCurrency] = useState(account.currency);
-  const [is_margin, setIsMargin] = useState(account.is_margin);
-  const [margin_debt, setMarginDebt] = useState(String(account.margin_debt ?? ""));
   const [color, setColor] = useState<string | null>(account.color ?? null);
 
   return (
@@ -332,7 +330,11 @@ function EditAccountForm({
       <label>Account name</label>
       <input value={name} onChange={(e) => setName(e.target.value)} />
       <label>Currency</label>
-      <input value={currency} onChange={(e) => setCurrency(e.target.value)} />
+      <select value={currency} onChange={(e) => setCurrency(e.target.value)}>
+        {CURRENCY_OPTIONS.map((c) => (
+          <option key={c.code} value={c.code}>{c.label}</option>
+        ))}
+      </select>
       <label>Color</label>
       <div style={{ display: "flex", flexWrap: "wrap", gap: 6, alignItems: "center" }}>
         {ACCOUNT_COLOR_PALETTE.map((hex) => (
@@ -377,46 +379,12 @@ function EditAccountForm({
           —
         </button>
       </div>
-      {account.type === "brokerage" && (
-        <>
-          <label><input type="checkbox" checked={is_margin} onChange={(e) => setIsMargin(e.target.checked)} /> Margin account</label>
-          {is_margin && (
-            <>
-              <label>Margin debt</label>
-              <input type="number" value={margin_debt} onChange={(e) => setMarginDebt(e.target.value)} placeholder="0" />
-            </>
-          )}
-        </>
-      )}
       <div style={{ marginTop: "1rem", display: "flex", gap: "0.5rem" }}>
-        <button
-          className="primary"
-          onClick={() =>
-            onSave({
-              name,
-              currency,
-              color,
-              ...(account.type === "brokerage"
-                ? { is_margin, margin_debt: is_margin && margin_debt ? parseFloat(margin_debt) : undefined }
-                : {}),
-            })
-          }
-        >
+        <button className="primary" onClick={() => onSave({ name, currency, color })}>
           Save
         </button>
         <button onClick={onCancel}>Cancel</button>
       </div>
-    </div>
-  );
-}
-
-function MarginDebtForm({ value, onSave }: { value: number; onSave: (v: number) => void }) {
-  const [v, setV] = useState(String(value));
-  return (
-    <div style={{ marginBottom: "1rem", display: "flex", gap: "0.5rem", alignItems: "center" }}>
-      <label style={{ margin: 0 }}>Margin debt</label>
-      <input type="number" value={v} onChange={(e) => setV(e.target.value)} style={{ width: 120 }} />
-      <button onClick={() => onSave(parseFloat(v) || 0)}>Update</button>
     </div>
   );
 }
@@ -442,6 +410,7 @@ function AddAssetForm({
   const [mortgage_term_months, setMortgageTerm] = useState("");
   const [symbolError, setSymbolError] = useState<string | null>(null);
   const [validating, setValidating] = useState(false);
+  const [brokerageAddMode, setBrokerageAddMode] = useState<"position" | "cash">("position");
 
   if (accountType === "cash") {
     return (
@@ -449,7 +418,11 @@ function AddAssetForm({
         <label>Balance</label>
         <input type="number" value={balance} onChange={(e) => setBalance(e.target.value)} />
         <label>Currency</label>
-        <input value={currency} onChange={(e) => setCurrency(e.target.value)} />
+        <select value={currency} onChange={(e) => setCurrency(e.target.value)}>
+          {CURRENCY_OPTIONS.map((c) => (
+            <option key={c.code} value={c.code}>{c.label}</option>
+          ))}
+        </select>
         <div style={{ marginTop: "1rem", display: "flex", gap: "0.5rem" }}>
           <button className="primary" onClick={() => onSave({ balance: parseFloat(balance) || 0, currency })}>Save</button>
           <button onClick={onCancel}>Cancel</button>
@@ -458,7 +431,7 @@ function AddAssetForm({
     );
   }
   if (accountType === "brokerage") {
-    const handleBrokerageSave = async () => {
+    const handleBrokeragePositionSave = async () => {
       const sym = symbol.trim().toUpperCase();
       if (!sym) {
         setSymbolError("Symbol is required");
@@ -479,15 +452,50 @@ function AddAssetForm({
     };
     return (
       <div className="card" style={{ marginBottom: "1rem" }}>
-        <label>Symbol</label>
-        <input value={symbol} onChange={(e) => { setSymbol(e.target.value); setSymbolError(null); }} placeholder="AAPL" />
-        {symbolError && <div style={{ color: "#f87171", fontSize: "0.875rem", marginTop: 4 }}>{symbolError}</div>}
-        <label>Shares</label>
-        <input type="number" value={shares} onChange={(e) => setShares(e.target.value)} />
-        <div style={{ marginTop: "1rem", display: "flex", gap: "0.5rem" }}>
-          <button className="primary" onClick={handleBrokerageSave} disabled={validating}>{validating ? "Checking…" : "Save"}</button>
-          <button onClick={onCancel}>Cancel</button>
+        <div style={{ display: "flex", gap: 8, marginBottom: "0.75rem" }}>
+          <button
+            type="button"
+            className={brokerageAddMode === "position" ? "primary" : ""}
+            onClick={() => setBrokerageAddMode("position")}
+          >
+            Add position
+          </button>
+          <button
+            type="button"
+            className={brokerageAddMode === "cash" ? "primary" : ""}
+            onClick={() => setBrokerageAddMode("cash")}
+          >
+            Add cash balance
+          </button>
         </div>
+        {brokerageAddMode === "position" ? (
+          <>
+            <label>Symbol</label>
+            <input value={symbol} onChange={(e) => { setSymbol(e.target.value); setSymbolError(null); }} placeholder="AAPL" />
+            {symbolError && <div style={{ color: "#f87171", fontSize: "0.875rem", marginTop: 4 }}>{symbolError}</div>}
+            <label>Shares</label>
+            <input type="number" value={shares} onChange={(e) => setShares(e.target.value)} />
+            <div style={{ marginTop: "1rem", display: "flex", gap: "0.5rem" }}>
+              <button className="primary" onClick={handleBrokeragePositionSave} disabled={validating}>{validating ? "Checking…" : "Save"}</button>
+              <button onClick={onCancel}>Cancel</button>
+            </div>
+          </>
+        ) : (
+          <>
+            <label>Balance (negative = margin debt)</label>
+            <input type="number" value={balance} onChange={(e) => setBalance(e.target.value)} placeholder="0" />
+            <label>Currency</label>
+            <select value={currency} onChange={(e) => setCurrency(e.target.value)}>
+              {CURRENCY_OPTIONS.map((c) => (
+                <option key={c.code} value={c.code}>{c.label}</option>
+              ))}
+            </select>
+            <div style={{ marginTop: "1rem", display: "flex", gap: "0.5rem" }}>
+              <button className="primary" onClick={() => onSave({ balance: parseFloat(balance) || 0, currency })}>Save</button>
+              <button onClick={onCancel}>Cancel</button>
+            </div>
+          </>
+        )}
       </div>
     );
   }
@@ -600,11 +608,14 @@ function AssetRow({
   const [editing, setEditing] = useState(false);
   const [val, setVal] = useState("");
 
+  const isBrokerageCash = accountType === "brokerage" && asset.balance != null && !asset.symbol;
   const display =
     accountType === "cash"
-      ? `${asset.balance} ${asset.currency}`
+      ? `${asset.balance} ${asset.currency ?? "USD"}`
       : accountType === "brokerage"
-      ? `${asset.symbol} × ${asset.shares}`
+      ? isBrokerageCash
+        ? `${asset.balance} ${asset.currency ?? "USD"} (${Number(asset.balance) < 0 ? "Margin debt" : "Cash"})`
+        : `${asset.symbol} × ${asset.shares}`
       : accountType === "bitcoin"
       ? `${asset.btc_amount} BTC`
       : null;
@@ -617,8 +628,10 @@ function AssetRow({
       </div>
     ) : null;
 
+  const [editCurrency, setEditCurrency] = useState(asset.currency ?? "USD");
   const commitEdit = () => {
-    if (accountType === "cash") onUpdate({ balance: parseFloat(val) || 0 });
+    if (accountType === "cash") onUpdate({ balance: parseFloat(val) || 0, currency: editCurrency });
+    else if (accountType === "brokerage" && isBrokerageCash) onUpdate({ balance: parseFloat(val) || 0, currency: editCurrency });
     else if (accountType === "brokerage") onUpdate({ shares: parseFloat(val) || 0 });
     else if (accountType === "bitcoin") onUpdate({ btc_amount: parseFloat(val) || 0 });
     else onUpdate({ property_value: parseFloat(val) || 0 });
@@ -640,6 +653,7 @@ function AssetRow({
   }
 
   if (editing) {
+    const showCashEdit = accountType === "cash" || isBrokerageCash;
     return (
       <tr>
         <td colSpan={2}>
@@ -647,11 +661,22 @@ function AssetRow({
             type="number"
             value={val}
             onChange={(e) => setVal(e.target.value)}
-            autoFocus
+            autoFocus={!showCashEdit}
             onKeyDown={(e) => {
               if (e.key === "Enter") commitEdit();
             }}
           />
+          {showCashEdit && (
+            <select
+              value={editCurrency}
+              onChange={(e) => setEditCurrency(e.target.value)}
+              style={{ marginLeft: 8 }}
+            >
+              {CURRENCY_OPTIONS.map((c) => (
+                <option key={c.code} value={c.code}>{c.label}</option>
+              ))}
+            </select>
+          )}
           <button className="primary" onClick={commitEdit}>Save</button>
           <button onClick={() => setEditing(false)}>Cancel</button>
         </td>
@@ -665,7 +690,11 @@ function AssetRow({
         <button
           onClick={() => {
             if (accountType === "property") setEditing(true);
-            else { setVal(String(asset.shares ?? asset.balance ?? asset.btc_amount ?? asset.property_value ?? "")); setEditing(true); }
+            else {
+              setVal(String(asset.shares ?? asset.balance ?? asset.btc_amount ?? asset.property_value ?? ""));
+              setEditCurrency(asset.currency ?? "USD");
+              setEditing(true);
+            }
           }}
         >
           Edit

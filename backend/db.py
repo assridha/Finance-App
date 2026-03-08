@@ -34,6 +34,27 @@ def _migrate_account_color(sync_conn):
         sync_conn.execute(text("ALTER TABLE accounts ADD COLUMN color VARCHAR(7)"))
 
 
+def _migrate_margin_to_cash_assets(sync_conn):
+    """One-off: for accounts with is_margin=1 and margin_debt > 0, create a cash asset with balance=-margin_debt."""
+    sync_conn.execute(text(
+        "CREATE TABLE IF NOT EXISTS _schema_migrations (version TEXT PRIMARY KEY)")
+    )
+    r = sync_conn.execute(text("INSERT OR IGNORE INTO _schema_migrations (version) VALUES ('margin_to_cash')"))
+    if r.rowcount == 0:
+        return  # already applied
+    rows = sync_conn.execute(text(
+        "SELECT id, currency, margin_debt FROM accounts WHERE is_margin = 1 AND margin_debt IS NOT NULL AND margin_debt > 0"
+    )).fetchall()
+    for row in rows:
+        acc_id, currency, margin_debt = row[0], row[1] or "USD", float(row[2])
+        sync_conn.execute(
+            text(
+                "INSERT INTO assets (account_id, balance, currency) VALUES (:aid, :bal, :cur)"
+            ),
+            {"aid": acc_id, "bal": -margin_debt, "cur": currency},
+        )
+
+
 async def get_db():
     async with AsyncSessionLocal() as session:
         try:
@@ -50,3 +71,4 @@ async def init_db():
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
         await conn.run_sync(_migrate_account_color)
+        await conn.run_sync(_migrate_margin_to_cash_assets)

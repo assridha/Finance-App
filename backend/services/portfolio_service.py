@@ -6,6 +6,7 @@ from sqlalchemy.orm import selectinload
 from models import Account, Asset, AccountType
 from services.yfinance_service import get_prices
 from services.price_model_service import get_or_compute_model
+from services.fx_service import amount_to_usd
 
 
 async def compute_portfolio_current(db: AsyncSession, prices: dict[str, dict] | None = None) -> tuple[float, float, list[dict], list[dict]]:
@@ -37,7 +38,8 @@ async def compute_portfolio_current(db: AsyncSession, prices: dict[str, dict] | 
         acc_value_market = Decimal("0")
         for a in acc.assets:
             if acc.type == AccountType.cash and a.balance is not None:
-                v = Decimal(str(a.balance))
+                balance_usd = amount_to_usd(float(a.balance), getattr(a, "currency", None) or acc.currency)
+                v = Decimal(str(balance_usd))
                 acc_value_fair += v
                 acc_value_market += v
                 assets_detail.append({
@@ -47,8 +49,29 @@ async def compute_portfolio_current(db: AsyncSession, prices: dict[str, dict] | 
                     "shares": float(a.shares) if a.shares is not None else None,
                     "btc_amount": float(a.btc_amount) if a.btc_amount is not None else None,
                     "balance": float(a.balance) if a.balance is not None else None,
+                    "currency": getattr(a, "currency", None) or acc.currency,
                     "property_value": float(a.property_value) if a.property_value is not None else None,
                     "mortgage_balance": float(a.mortgage_balance) if a.mortgage_balance is not None else None,
+                    "value": float(v),
+                    "market_value": float(v),
+                    "fair_price": None,
+                    "market_price": None,
+                })
+            elif acc.type == AccountType.brokerage and a.balance is not None and not a.symbol:
+                balance_usd = amount_to_usd(float(a.balance), getattr(a, "currency", None) or acc.currency)
+                v = Decimal(str(balance_usd))
+                acc_value_fair += v
+                acc_value_market += v
+                assets_detail.append({
+                    "asset_id": a.id,
+                    "account_id": acc.id,
+                    "symbol": None,
+                    "shares": None,
+                    "btc_amount": None,
+                    "balance": float(a.balance),
+                    "currency": getattr(a, "currency", None) or acc.currency,
+                    "property_value": None,
+                    "mortgage_balance": None,
                     "value": float(v),
                     "market_value": float(v),
                     "fair_price": None,
@@ -160,10 +183,6 @@ async def compute_portfolio_current(db: AsyncSession, prices: dict[str, dict] | 
                     "fair_price": None,
                     "market_price": None,
                 })
-        if acc.is_margin and acc.margin_debt is not None:
-            debt = Decimal(str(acc.margin_debt))
-            acc_value_fair -= debt
-            acc_value_market -= debt
         by_account.append({
             "account_id": acc.id,
             "account_name": acc.name,
