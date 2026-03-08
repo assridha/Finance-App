@@ -13,6 +13,8 @@ import {
   YAxis,
 } from "recharts";
 import { forecastApi, portfolioApi, type ForecastBreakdownItem } from "../api";
+import { useDisplayCurrency } from "../contexts/DisplayCurrencyContext";
+import { useDefaultDebtInterestRate } from "../contexts/DefaultDebtInterestRateContext";
 
 const ACCOUNT_COLORS = ["#a78bfa", "#22c55e", "#f59e0b", "#06b6d4", "#ec4899", "#84cc16"];
 const CASHFLOW_BUCKET_COLOR = "#14b8a6"; // teal – distinct from account green (IBKR etc.)
@@ -42,8 +44,9 @@ const DETAIL_LABELS: Record<string, string> = {
 
 export default function Forecast() {
   const [horizonYears, setHorizonYears] = useState(10);
-  const [marginRate, setMarginRate] = useState(0.08);
   const [cashflowCagr, setCashflowCagr] = useState(0.05);
+  const { formatUsdForDisplay, formatDisplayAmount, rateUsdToDisplay } = useDisplayCurrency();
+  const { defaultDebtInterestRate } = useDefaultDebtInterestRate();
 
   const { data: portfolio } = useQuery({
     queryKey: ["portfolio", "current"],
@@ -51,11 +54,11 @@ export default function Forecast() {
   });
 
   const { data, isLoading, isFetching, refetch } = useQuery({
-    queryKey: ["forecast", horizonYears, marginRate, cashflowCagr],
+    queryKey: ["forecast", horizonYears, defaultDebtInterestRate, cashflowCagr],
     queryFn: () =>
       forecastApi.run({
         horizon_years: horizonYears,
-        margin_interest_rate: marginRate,
+        margin_interest_rate: defaultDebtInterestRate,
         cashflow_bucket_cagr: cashflowCagr,
       }),
     enabled: false,
@@ -152,11 +155,11 @@ export default function Forecast() {
     const fairRow: Record<string, string | number> = { name: "Fair value" };
     byAccount.forEach((a) => {
       const market = a.market_value ?? a.value;
-      marketRow[a.account_name] = includedAccounts.has(a.account_name) ? market : 0;
-      fairRow[a.account_name] = includedAccounts.has(a.account_name) ? a.value : 0;
+      marketRow[a.account_name] = includedAccounts.has(a.account_name) ? (market ?? 0) * rateUsdToDisplay : 0;
+      fairRow[a.account_name] = includedAccounts.has(a.account_name) ? (a.value ?? 0) * rateUsdToDisplay : 0;
     });
     return [marketRow, fairRow];
-  }, [portfolio?.by_account, includedAccounts]);
+  }, [portfolio?.by_account, includedAccounts, rateUsdToDisplay]);
 
   const detailKeys = useMemo(() => {
     const set = new Set<string>();
@@ -181,16 +184,6 @@ export default function Forecast() {
             max={30}
             value={horizonYears}
             onChange={(e) => setHorizonYears(parseInt(e.target.value, 10) || 10)}
-            style={{ width: 80 }}
-          />
-        </div>
-        <div>
-          <label>Margin interest rate (annual)</label>
-          <input
-            type="number"
-            step="0.01"
-            value={marginRate}
-            onChange={(e) => setMarginRate(parseFloat(e.target.value) || 0)}
             style={{ width: 80 }}
           />
         </div>
@@ -225,11 +218,11 @@ export default function Forecast() {
                 <BarChart data={presentDayBarData} margin={{ top: 8, right: 8, left: 56, bottom: 8 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#27272a" />
                   <XAxis dataKey="name" stroke="#71717a" />
-                  <YAxis stroke="#71717a" width={52} tickFormatter={(v) => `$${Number(v).toLocaleString()}`} />
+                  <YAxis stroke="#71717a" width={52} tickFormatter={(v) => formatDisplayAmount(Number(v))} />
                   <Tooltip
                     formatter={(v: number | undefined, name?: string) =>
                       name != null && !includedAccounts.has(name) ? null : [
-                        `$${Number(v ?? 0).toLocaleString("en-US", { minimumFractionDigits: 2 })}`,
+                        formatDisplayAmount(v ?? 0),
                         name ?? "",
                       ]
                     }
@@ -320,7 +313,15 @@ export default function Forecast() {
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart
                   data={series.map((s) => {
-                    const point: Record<string, unknown> = { ...s, ...(s.account_values ?? {}) };
+                    const r = rateUsdToDisplay;
+                    const point: Record<string, unknown> = {
+                      date: s.date,
+                      total_value: (s.total_value ?? 0) * r,
+                      cashflow_bucket: (s.cashflow_bucket ?? 0) * r,
+                      ...Object.fromEntries(
+                        Object.entries(s.account_values ?? {}).map(([k, v]) => [k, (v as number) * r])
+                      ),
+                    };
                     forecastSeriesNames.forEach((name) => {
                       if (!includedForecastSeries.has(name)) {
                         if (name === "Cashflow bucket") point.cashflow_bucket = 0;
@@ -333,7 +334,7 @@ export default function Forecast() {
                 >
                   <CartesianGrid strokeDasharray="3 3" stroke="#27272a" />
                   <XAxis dataKey="date" stroke="#71717a" />
-                  <YAxis stroke="#71717a" width={52} tickFormatter={(v) => `$${Number(v).toLocaleString()}`} />
+                  <YAxis stroke="#71717a" width={52} tickFormatter={(v) => formatDisplayAmount(Number(v))} />
                   <Tooltip
                     content={({ payload, label, active }) => {
                       if (!active || !payload?.length) return null;
@@ -356,7 +357,7 @@ export default function Forecast() {
                                 }}
                               />
                               <span style={{ color: "#e4e4e7" }}>
-                                {p.value != null ? `$${Number(p.value).toLocaleString()}` : "—"}
+                                {p.value != null ? formatDisplayAmount(Number(p.value)) : "—"}
                               </span>
                             </div>
                           ))}
@@ -465,7 +466,7 @@ export default function Forecast() {
                   {detailKeys.map((k) => (
                     <th key={k}>{DETAIL_LABELS[k] ?? k}</th>
                   ))}
-                  <th style={{ textAlign: "right" }}>Value ($)</th>
+                  <th style={{ textAlign: "right" }}>Value</th>
                 </tr>
               </thead>
               <tbody>
@@ -482,7 +483,7 @@ export default function Forecast() {
                         </td>
                       );
                     })}
-                    <td style={{ textAlign: "right", fontWeight: 500 }}>{row.value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                    <td style={{ textAlign: "right", fontWeight: 500 }}>{formatUsdForDisplay(row.value)}</td>
                   </tr>
                 ))}
               </tbody>

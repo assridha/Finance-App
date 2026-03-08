@@ -99,8 +99,10 @@ def fit_stock_model(symbol: str) -> dict[str, Any] | None:
 
 
 def fit_bitcoin_model() -> dict[str, Any] | None:
-    """Fit log(price) = a + b*log(days_since_genesis). Uses period=max."""
+    """Fit log(price) = a + b*log(days_since_genesis). Uses period=max, fallback 5y."""
     hist = get_history("BTC-USD", period="max")
+    if hist is None or len(hist) < 252:
+        hist = get_history("BTC-USD", period="5y")
     if hist is None or len(hist) < 252:
         return None
     hist = hist.sort_index()
@@ -390,3 +392,78 @@ async def get_fair_floor_ceiling_at_date(
     if row is None:
         return None
     return fair_value_at_date(symbol, d, row)
+
+
+def _chart_point(d: date, price: float, fair: float, floor_5: float, ceiling_95: float) -> dict[str, Any]:
+    return {
+        "date": d.isoformat(),
+        "price": round(float(price), 4),
+        "fair": round(fair, 4),
+        "floor_5": round(floor_5, 4),
+        "ceiling_95": round(ceiling_95, 4),
+    }
+
+
+async def get_chart_data(
+    db: AsyncSession,
+    symbol: str,
+) -> dict[str, Any] | None:
+    """
+    Return chart payload for symbol: historical price plus fitted fair value and 5th/95th percentile bands.
+    Returns None if model or history unavailable. Payload: symbol, model_type, fit_start_date, fit_end_date, data.
+    """
+    symbol_upper = (symbol or "").strip().upper()
+    if not symbol_upper:
+        return None
+    model_result = await get_or_compute_model(db, symbol_upper, force_refresh=False)
+    if model_result is None:
+        return None
+    row = await get_price_model(db, symbol_upper)
+    if row is None:
+        return None
+    btc_row: PriceModel | None = None
+    ibit_ratio: float | None = None
+
+    if symbol_upper == "IBIT":
+        # IBIT: use BTC-USD model with converted prices (BTC history * ratio → IBIT terms)
+        btc_row = await get_price_model(db, "BTC-USD")
+        if btc_row is None or row.btc_to_ibit_ratio is None:
+            return None
+        ibit_ratio = float(row.btc_to_ibit_ratio)
+        hist = get_history("BTC-USD", period="max")
+        if hist is None or len(hist) < 30:
+            hist = get_history("BTC-USD", period="5y")
+    else:
+        period = "max" if symbol_upper == "BTC-USD" else "5y"
+        hist = get_history(symbol, period=period)
+
+    if hist is None or len(hist) < 30:
+        return None
+    hist = hist.sort_index()
+
+    data: list[dict[str, Any]] = []
+    for ts in hist.index:
+        d = ts.date() if hasattr(ts, "date") else date(ts.year, ts.month, ts.day)
+        btc_close = float(hist.loc[ts, "Close"])
+        if symbol_upper == "IBIT" and btc_row is not None and ibit_ratio is not None:
+            price = btc_close * ibit_ratio  # converted to IBIT terms
+            fair_btc, floor_btc, ceiling_btc = fair_value_at_date("BTC-USD", d, btc_row)
+            fair = fair_btc * ibit_ratio
+            floor_5 = floor_btc * ibit_ratio
+            ceiling_95 = ceiling_btc * ibit_ratio
+        else:
+            price = btc_close
+            fair, floor_5, ceiling_95 = fair_value_at_date(symbol_upper, d, row)
+        data.append(_chart_point(d, price, fair, floor_5, ceiling_95))
+
+    fit_start = model_result.get("fit_start_date")
+    fit_end = model_result.get("fit_end_date")
+    if symbol_upper == "IBIT" and btc_row is not None:
+        fit_end = btc_row.fit_end_date.isoformat() if btc_row.fit_end_date else fit_end
+    return {
+        "symbol": symbol_upper,
+        "model_type": model_result.get("model_type", "stock"),
+        "fit_start_date": fit_start,
+        "fit_end_date": fit_end,
+        "data": data,
+    }

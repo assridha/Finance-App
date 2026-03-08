@@ -5,6 +5,7 @@ class AssetCreate(BaseModel):
     # Type-specific; only set the ones for this account type
     balance: float | None = None
     currency: str | None = None
+    debt_interest_rate: float | None = None
     symbol: str | None = None
     shares: float | None = None
     btc_amount: float | None = None
@@ -19,6 +20,7 @@ class AssetCreate(BaseModel):
 class AssetUpdate(BaseModel):
     balance: float | None = None
     currency: str | None = None
+    debt_interest_rate: float | None = None
     symbol: str | None = None
     shares: float | None = None
     btc_amount: float | None = None
@@ -35,6 +37,7 @@ class AssetResponse(BaseModel):
     account_id: int
     balance: float | None
     currency: str | None
+    debt_interest_rate: float | None
     symbol: str | None
     shares: float | None
     btc_amount: float | None

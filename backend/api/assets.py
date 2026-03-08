@@ -55,6 +55,7 @@ async def create_asset(account_id: int, data: AssetCreate, db: AsyncSession = De
         account_id=account_id,
         balance=data.balance,
         currency=data.currency,
+        debt_interest_rate=data.debt_interest_rate,
         symbol=data.symbol,
         shares=data.shares,
         btc_amount=data.btc_amount,
@@ -88,11 +89,12 @@ async def update_asset(asset_id: int, data: AssetUpdate, db: AsyncSession = Depe
     asset = r.scalar_one_or_none()
     if not asset:
         raise HTTPException(404, "Asset not found")
+    allowed = {"balance", "currency", "debt_interest_rate", "symbol", "shares", "btc_amount", "property_value", "mortgage_balance",
+               "appreciation_cagr", "mortgage_annual_rate", "mortgage_term_remaining_months", "payment_frequency"}
+    payload = data.model_dump(exclude_unset=True)
     updated = False
-    for field in ("balance", "currency", "symbol", "shares", "btc_amount", "property_value", "mortgage_balance",
-                  "appreciation_cagr", "mortgage_annual_rate", "mortgage_term_remaining_months", "payment_frequency"):
-        v = getattr(data, field, None)
-        if v is not None:
+    for field, v in payload.items():
+        if field in allowed:
             setattr(asset, field, v)
             updated = True
     if updated:

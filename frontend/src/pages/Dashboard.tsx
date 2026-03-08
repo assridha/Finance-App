@@ -1,7 +1,8 @@
-import { useEffect, useState } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useEffect, useMemo, useState } from "react";
+import { useQueries, useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts";
-import { accountsApi, portfolioApi, type AccountType } from "../api";
+import { accountsApi, portfolioApi, fxApi, type AccountType } from "../api";
+import { useDisplayCurrency } from "../contexts/DisplayCurrencyContext";
 
 const ACCOUNT_TYPE_EMOJI: Record<AccountType, string> = {
   cash: "💵",
@@ -14,6 +15,7 @@ const ACCOUNT_COLOR_FALLBACKS = ["#3b82f6", "#22c55e", "#f59e0b", "#8b5cf6", "#e
 
 export default function Dashboard() {
   const qc = useQueryClient();
+  const { formatUsdForDisplay, formatDisplayAmount, displayCurrency } = useDisplayCurrency();
   const { data: accounts = [] } = useQuery({ queryKey: ["accounts"], queryFn: accountsApi.list });
   const { data: current, isLoading: loadingCurrent, error: errorCurrent } = useQuery({
     queryKey: ["portfolio", "current"],
@@ -31,6 +33,26 @@ export default function Dashboard() {
   const byAccount = current?.by_account ?? [];
   const accountNames = byAccount.map((a) => a.account_name);
   const historyList = history?.history ?? [];
+  const uniqueDates = useMemo(() => [...new Set(historyList.map((h) => h.date))], [historyList]);
+  const historicalRateQueries = useQueries({
+    queries:
+      displayCurrency === "USD"
+        ? []
+        : uniqueDates.map((date) => ({
+            queryKey: ["fx", "USD", displayCurrency, date] as const,
+            queryFn: () => fxApi.rate("USD", displayCurrency, date),
+            staleTime: 24 * 60 * 60 * 1000,
+          })),
+  });
+  const ratesByDate = useMemo(() => {
+    const map: Record<string, number> = {};
+    if (displayCurrency === "USD") return map;
+    uniqueDates.forEach((date, i) => {
+      const res = historicalRateQueries[i]?.data;
+      if (res?.rate != null) map[date] = res.rate;
+    });
+    return map;
+  }, [displayCurrency, uniqueDates, historicalRateQueries]);
   const historyOnlyNames = Array.from(
     new Set(
       historyList.flatMap((h) => (h.by_account ?? []).map((a) => a.account_name)).filter((n) => !accountNames.includes(n))
@@ -69,31 +91,37 @@ export default function Dashboard() {
   if (errorCurrent) return <div className="card" style={{ color: "#f87171" }}>Failed to load portfolio: {(errorCurrent as Error).message}</div>;
 
   const hasBreakdown = historyList.some((h) => h.by_account && h.by_account.length > 0);
-  const chartData =
-    hasBreakdown && allChartAccountNames.length > 0
-      ? historyList.map((h) => {
-          const row: Record<string, string | number> = { date: h.date, total_value: h.total_value };
-          const byName = new Map((h.by_account ?? []).map((a) => [a.account_name, a.value]));
-          allChartAccountNames.forEach((name) => {
-            row[name] = includedAccounts.has(name) ? (byName.get(name) ?? 0) : 0;
-          });
-          return row;
-        })
-      : historyList.map((h) => ({ date: h.date, total_value: h.total_value }));
+  const chartData = useMemo(() => {
+    const rateFor = (date: string) => ratesByDate[date] ?? 1;
+    if (hasBreakdown && allChartAccountNames.length > 0) {
+      return historyList.map((h) => {
+        const r = rateFor(h.date);
+        const row: Record<string, string | number> = { date: h.date, total_value: h.total_value * r };
+        const byName = new Map((h.by_account ?? []).map((a) => [a.account_name, a.value * r]));
+        allChartAccountNames.forEach((name) => {
+          row[name] = includedAccounts.has(name) ? (byName.get(name) ?? 0) : 0;
+        });
+        return row;
+      });
+    }
+    return historyList.map((h) => ({ date: h.date, total_value: h.total_value * rateFor(h.date) }));
+  }, [hasBreakdown, allChartAccountNames, historyList, includedAccounts, ratesByDate]);
 
   return (
     <div>
       <h1>Dashboard</h1>
       <div className="card" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <div>
-          <div style={{ color: "#71717a", fontSize: "0.875rem" }}>Total portfolio value (fair)</div>
+          <div style={{ color: "#71717a", fontSize: "0.875rem" }}>
+            Total portfolio value (fair){displayCurrency !== "USD" ? ` (${displayCurrency})` : ""}
+          </div>
           <div style={{ fontSize: "1.75rem", fontWeight: 600 }}>
-            ${current?.total_value?.toLocaleString("en-US", { minimumFractionDigits: 2 }) ?? "0.00"}
+            {formatUsdForDisplay(current?.total_value ?? 0)}
           </div>
           {current?.total_market_value != null &&
             Math.abs((current.total_market_value ?? 0) - (current.total_value ?? 0)) > 0.01 && (
               <div style={{ color: "#71717a", fontSize: "0.875rem", marginTop: "0.25rem" }}>
-                Market: ${current.total_market_value.toLocaleString("en-US", { minimumFractionDigits: 2 })}
+                Market: {formatUsdForDisplay(current.total_market_value)}
               </div>
             )}
         </div>
@@ -124,7 +152,7 @@ export default function Dashboard() {
                   />
                   <span style={{ opacity: 0.9 }}>{emoji}</span>
                   <span>
-                    {a.account_name}: ${a.value.toLocaleString("en-US", { minimumFractionDigits: 2 })}
+                    {a.account_name}: {formatUsdForDisplay(a.value)}
                   </span>
                 </li>
               );
@@ -148,11 +176,11 @@ export default function Dashboard() {
                 <AreaChart data={chartData} margin={{ top: 8, right: 8, left: 56, bottom: 8 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#27272a" />
                   <XAxis dataKey="date" stroke="#71717a" />
-                  <YAxis stroke="#71717a" width={52} tickFormatter={(v) => `$${Number(v).toLocaleString()}`} />
+                  <YAxis stroke="#71717a" width={52} tickFormatter={(v) => formatDisplayAmount(Number(v))} />
                   <Tooltip
                     formatter={(v: number | undefined, name?: string) =>
                       name != null && typeof name === "string" && !includedAccounts.has(name) ? null : [
-                        v != null ? `$${Number(v).toLocaleString()}` : "—",
+                        v != null ? formatDisplayAmount(Number(v)) : "—",
                         name ?? "Value",
                       ]
                     }
@@ -267,7 +295,8 @@ export default function Dashboard() {
               </thead>
               <tbody>
                 {[...historyList].reverse().map((h) => {
-                  const byName = new Map((h.by_account ?? []).map((a) => [a.account_name, a.value]));
+                  const r = ratesByDate[h.date] ?? 1;
+                  const byName = new Map((h.by_account ?? []).map((a) => [a.account_name, a.value * r]));
                   return (
                     <tr key={h.date} style={{ borderBottom: "1px solid #27272a" }}>
                       <td style={{ padding: "0.5rem 0.75rem" }}>{h.date}</td>
@@ -275,12 +304,12 @@ export default function Dashboard() {
                         const val = byName.get(acc.account_name);
                         return (
                           <td key={acc.account_id === -1 ? acc.account_name : acc.account_id} style={{ textAlign: "right", padding: "0.5rem 0.75rem" }}>
-                            {val != null ? `$${Number(val).toLocaleString("en-US", { minimumFractionDigits: 2 })}` : "—"}
+                            {val != null ? formatDisplayAmount(val) : "—"}
                           </td>
                         );
                       })}
                       <td style={{ textAlign: "right", padding: "0.5rem 0.75rem", fontWeight: 500 }}>
-                        ${Number(h.total_value).toLocaleString("en-US", { minimumFractionDigits: 2 })}
+                        {formatDisplayAmount(h.total_value * r)}
                       </td>
                     </tr>
                   );

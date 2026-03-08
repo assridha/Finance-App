@@ -19,9 +19,10 @@ class Asset(Base):
     account_id: Mapped[int] = mapped_column(ForeignKey("accounts.id", ondelete="CASCADE"), nullable=False)
 
     # Type-specific fields (only one set used per type)
-    # Cash: balance in currency
+    # Cash: balance in currency. debt_interest_rate: annual rate when balance < 0 (margin/overdraft).
     balance: Mapped[float | None] = mapped_column(Numeric(20, 4), nullable=True)
     currency: Mapped[str | None] = mapped_column(String(10), nullable=True)
+    debt_interest_rate: Mapped[float | None] = mapped_column(Numeric(8, 4), nullable=True)
 
     # Brokerage: symbol + shares
     symbol: Mapped[str | None] = mapped_column(String(20), nullable=True)

@@ -133,7 +133,10 @@ async def compute_portfolio_current(db: AsyncSession, prices: dict[str, dict] | 
                     "market_price": market_p,
                 })
             elif acc.type == AccountType.property and a.property_value is not None and a.mortgage_balance is not None:
-                v = Decimal(str(a.property_value)) - Decimal(str(a.mortgage_balance))
+                prop_currency = getattr(a, "currency", None) or "USD"
+                pv_usd = amount_to_usd(float(a.property_value), prop_currency)
+                mb_usd = amount_to_usd(float(a.mortgage_balance), prop_currency)
+                v = Decimal(str(pv_usd)) - Decimal(str(mb_usd))
                 acc_value_fair += v
                 acc_value_market += v
                 assets_detail.append({
@@ -151,7 +154,9 @@ async def compute_portfolio_current(db: AsyncSession, prices: dict[str, dict] | 
                     "market_price": None,
                 })
             elif acc.type == AccountType.property and a.property_value is not None:
-                v = Decimal(str(a.property_value))
+                prop_currency = getattr(a, "currency", None) or "USD"
+                pv_usd = amount_to_usd(float(a.property_value), prop_currency)
+                v = Decimal(str(pv_usd))
                 acc_value_fair += v
                 acc_value_market += v
                 assets_detail.append({

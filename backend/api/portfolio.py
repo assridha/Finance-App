@@ -8,6 +8,7 @@ from db import get_db
 from models import PortfolioSnapshot, Account, Asset, AccountType
 from schemas.portfolio import PortfolioCurrentResponse, PortfolioHistoryResponse, PortfolioHistoryItem, AccountValueItem
 from services.portfolio_service import compute_portfolio_current
+from services.fx_service import amount_to_usd
 from forecast.property_forecast import annuity_payment
 
 router = APIRouter(prefix="/portfolio", tags=["portfolio"])
@@ -82,15 +83,72 @@ async def get_estimated_mortgage_payments(db: AsyncSession = Depends(get_db)):
         mb = float(a.mortgage_balance)
         if mb <= 0:
             continue
+        prop_currency = getattr(a, "currency", None) or "USD"
+        mb_usd = amount_to_usd(mb, prop_currency)
         rate = float(a.mortgage_annual_rate)
         n = a.mortgage_term_remaining_months
         if n <= 0:
             continue
-        monthly = annuity_payment(mb, rate, n, 12)
+        monthly = annuity_payment(mb_usd, rate, n, 12)
         result.append({
             "account_name": acc.name,
             "asset_id": a.id,
             "monthly_payment": round(monthly, 2),
-            "mortgage_balance": mb,
+            "mortgage_balance": round(mb_usd, 2),
         })
     return {"payments": result}
+
+
+@router.get("/cash-debt-interest")
+async def get_cash_debt_interest(
+    margin_interest_rate: float = Query(0.08, description="Default annual rate when asset has no debt_interest_rate"),
+    db: AsyncSession = Depends(get_db),
+):
+    """Return net monthly interest expense from all negative cash balances (cash accounts and brokerage margin debt). Values in USD. Uses per-asset debt_interest_rate when set, else default."""
+    # Negative cash balance = debt (cash account or brokerage margin). Exclude brokerage positions (they have symbol).
+    r = await db.execute(
+        select(Account, Asset)
+        .join(Asset, Asset.account_id == Account.id)
+        .where(Asset.balance.isnot(None))
+        .where(Asset.balance < 0)
+        .where(
+            (Account.type == AccountType.cash) | ((Account.type == AccountType.brokerage) & (Asset.symbol.is_(None))),
+        )
+        .order_by(Account.id),
+    )
+    rows = r.all()
+    by_account: list[dict] = []
+    total_monthly_interest_usd = 0.0
+    seen_accounts: dict[int, dict] = {}
+    for acc, a in rows:
+        balance_raw = float(a.balance)
+        if balance_raw >= 0:
+            continue
+        rate = getattr(a, "debt_interest_rate", None)
+        if rate is None:
+            rate = margin_interest_rate
+        else:
+            rate = float(rate)
+        currency = getattr(a, "currency", None) or acc.currency
+        debt_usd = abs(amount_to_usd(balance_raw, currency))
+        monthly_interest_usd = debt_usd * (rate / 12)
+        total_monthly_interest_usd += monthly_interest_usd
+        if acc.id not in seen_accounts:
+            seen_accounts[acc.id] = {
+                "account_id": acc.id,
+                "account_name": acc.name,
+                "monthly_interest_usd": 0.0,
+                "debt_balance_usd": 0.0,
+            }
+            by_account.append(seen_accounts[acc.id])
+        seen_accounts[acc.id]["monthly_interest_usd"] += monthly_interest_usd
+        seen_accounts[acc.id]["debt_balance_usd"] += debt_usd
+    for item in by_account:
+        item["monthly_interest_usd"] = round(item["monthly_interest_usd"], 2)
+        item["debt_balance_usd"] = round(item["debt_balance_usd"], 2)
+    return {
+        "unit_of_account": "USD",
+        "total_monthly_interest_usd": round(total_monthly_interest_usd, 2),
+        "margin_interest_rate": margin_interest_rate,
+        "by_account": by_account,
+    }

@@ -1,10 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { pricesApi, type PriceItem } from "../api";
-
-function formatPrice(v: number | null | undefined) {
-  if (v == null || typeof v !== "number") return "—";
-  return v.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 4 });
-}
+import { useDisplayCurrency } from "../contexts/DisplayCurrencyContext";
 
 function formatParams(p: Record<string, number> | null | undefined) {
   if (!p || Object.keys(p).length === 0) return "—";
@@ -15,6 +11,7 @@ function formatParams(p: Record<string, number> | null | undefined) {
 
 export default function Prices() {
   const qc = useQueryClient();
+  const { formatUsdForDisplay } = useDisplayCurrency();
   const { data, isLoading, error } = useQuery({ queryKey: ["prices"], queryFn: () => pricesApi.list() });
   const recalc = useMutation({
     mutationFn: (symbols: string[]) => pricesApi.recalculate(symbols),
@@ -66,10 +63,10 @@ export default function Prices() {
                 {entries.map(([sym, p]) => (
                   <tr key={sym}>
                     <td>{sym}</td>
-                    <td>${formatPrice(p.price)}</td>
-                    <td>{p.fair_value != null ? `$${formatPrice(p.fair_value)}` : "—"}</td>
-                    <td>{p.floor_5 != null ? `$${formatPrice(p.floor_5)}` : "—"}</td>
-                    <td>{p.ceiling_95 != null ? `$${formatPrice(p.ceiling_95)}` : "—"}</td>
+                    <td>{formatUsdForDisplay(p.price, { maximumFractionDigits: 4 })}</td>
+                    <td>{p.fair_value != null ? formatUsdForDisplay(p.fair_value, { maximumFractionDigits: 4 }) : "—"}</td>
+                    <td>{p.floor_5 != null ? formatUsdForDisplay(p.floor_5, { maximumFractionDigits: 4 }) : "—"}</td>
+                    <td>{p.ceiling_95 != null ? formatUsdForDisplay(p.ceiling_95, { maximumFractionDigits: 4 }) : "—"}</td>
                     <td>
                       {p.quantile != null ? (
                         <span title="Approx. percentile of current price between floor and ceiling">

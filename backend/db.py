@@ -34,6 +34,14 @@ def _migrate_account_color(sync_conn):
         sync_conn.execute(text("ALTER TABLE accounts ADD COLUMN color VARCHAR(7)"))
 
 
+def _migrate_asset_debt_interest_rate(sync_conn):
+    """Add assets.debt_interest_rate column if missing (per-asset margin/debt rate)."""
+    r = sync_conn.execute(text("PRAGMA table_info(assets)"))
+    rows = r.fetchall()
+    if not any(len(row) > 1 and row[1] == "debt_interest_rate" for row in rows):
+        sync_conn.execute(text("ALTER TABLE assets ADD COLUMN debt_interest_rate NUMERIC(8, 4)"))
+
+
 def _migrate_margin_to_cash_assets(sync_conn):
     """One-off: for accounts with is_margin=1 and margin_debt > 0, create a cash asset with balance=-margin_debt."""
     sync_conn.execute(text(
@@ -71,4 +79,5 @@ async def init_db():
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
         await conn.run_sync(_migrate_account_color)
+        await conn.run_sync(_migrate_asset_debt_interest_rate)
         await conn.run_sync(_migrate_margin_to_cash_assets)

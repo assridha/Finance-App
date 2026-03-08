@@ -22,6 +22,7 @@ export interface Asset {
   account_id: number;
   balance: number | null;
   currency: string | null;
+  debt_interest_rate: number | null;
   symbol: string | null;
   shares: number | null;
   btc_amount: number | null;
@@ -156,6 +157,29 @@ export const forecastApi = {
       .then((r) => r.data),
 };
 
+export interface PriceModelChartPoint {
+  date: string;
+  price: number;
+  fair: number;
+  floor_5: number;
+  ceiling_95: number;
+}
+
+export interface PriceModelChartResponse {
+  symbol: string;
+  model_type: string;
+  fit_start_date: string | null;
+  fit_end_date: string | null;
+  data: PriceModelChartPoint[];
+}
+
+export const priceModelsApi = {
+  symbols: () =>
+    api.get<{ symbols: string[] }>("/price-models/symbols").then((r) => r.data),
+  chart: (symbol: string) =>
+    api.get<PriceModelChartResponse>("/price-models/chart", { params: { symbol } }).then((r) => r.data),
+};
+
 export const backupApi = {
   exportUrl: () => "/api/backup/export",
   import: (file: File, confirm: boolean) => {
@@ -163,4 +187,12 @@ export const backupApi = {
     form.append("file", file);
     return api.post("/backup/import", form, { params: { confirm }, headers: { "Content-Type": "multipart/form-data" } });
   },
+};
+
+export const fxApi = {
+  /** Get FX rate: amount_from * rate = amount_to. Optional date for historical rate (YYYY-MM-DD). */
+  rate: (from: string, to: string, date?: string) =>
+    api
+      .get<{ rate: number }>("/fx/rate", { params: { from, to, ...(date ? { date } : {}) } })
+      .then((r) => r.data),
 };

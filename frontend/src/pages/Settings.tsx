@@ -2,11 +2,16 @@ import { useRef, useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { backupApi } from "../api";
 import axios from "axios";
+import { useDisplayCurrency } from "../contexts/DisplayCurrencyContext";
+import { useDefaultDebtInterestRate } from "../contexts/DefaultDebtInterestRateContext";
+import { CURRENCY_OPTIONS } from "../constants/currencies";
 
 export default function Settings() {
   const fileRef = useRef<HTMLInputElement>(null);
   const [confirmRestore, setConfirmRestore] = useState(false);
   const [restoreMessage, setRestoreMessage] = useState("");
+  const { displayCurrency, setDisplayCurrency } = useDisplayCurrency();
+  const { defaultDebtInterestRate, setDefaultDebtInterestRate } = useDefaultDebtInterestRate();
 
   const importMutation = useMutation({
     mutationFn: ({ file, confirm }: { file: File; confirm: boolean }) => backupApi.import(file, confirm),
@@ -32,6 +37,39 @@ export default function Settings() {
   return (
     <div>
       <h1>Settings</h1>
+      <div className="card">
+        <h3 style={{ marginTop: 0 }}>Display currency</h3>
+        <p style={{ color: "#71717a" }}>All account values, prices, and totals are shown in this currency. Inputs (e.g. cash amount) keep their own currency.</p>
+        <label>
+          Currency:{" "}
+          <select
+            value={displayCurrency}
+            onChange={(e) => setDisplayCurrency(e.target.value)}
+            style={{ marginLeft: "0.5rem", padding: "0.35rem 0.5rem" }}
+          >
+            {CURRENCY_OPTIONS.map((c) => (
+              <option key={c.code} value={c.code}>
+                {c.label}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
+      <div className="card">
+        <h3 style={{ marginTop: 0 }}>Default debt interest rate</h3>
+        <p style={{ color: "#71717a" }}>Used for margin and cash debt when an asset does not specify its own rate (e.g. 0.08 = 8% annual).</p>
+        <label>
+          Annual rate:{" "}
+          <input
+            type="number"
+            step="0.01"
+            min="0"
+            value={defaultDebtInterestRate}
+            onChange={(e) => setDefaultDebtInterestRate(parseFloat(e.target.value) || 0)}
+            style={{ marginLeft: "0.5rem", padding: "0.35rem 0.5rem", width: 80 }}
+          />
+        </label>
+      </div>
       <div className="card">
         <h3 style={{ marginTop: 0 }}>Data backup</h3>
         <p style={{ color: "#71717a" }}>Download a copy of your database to recover from server disruptions.</p>

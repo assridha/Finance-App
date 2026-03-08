@@ -69,7 +69,8 @@ async def run_forecast(
         for a in acc.assets:
             if acc.type != AccountType.property or not a.mortgage_balance or not a.mortgage_annual_rate or not a.mortgage_term_remaining_months:
                 continue
-            P = float(a.mortgage_balance)
+            prop_currency = getattr(a, "currency", None) or "USD"
+            P = amount_to_usd(float(a.mortgage_balance), prop_currency)
             r = float(a.mortgage_annual_rate)
             n = a.mortgage_term_remaining_months
             pay = annuity_payment(P, r, n, 12)
@@ -116,22 +117,16 @@ async def run_forecast(
             acc_value = 0.0
             for a in acc.assets:
                 if acc.type == AccountType.cash and a.balance is not None:
-                    balance_usd = amount_to_usd(float(a.balance), getattr(a, "currency", None) or getattr(acc, "currency", None))
-                    acc_value += balance_usd
-                    breakdown.append({
-                        "year": d.year,
-                        "date": date_str,
-                        "label": _asset_label(acc, a),
-                        "type": "cash",
-                        "value": round(balance_usd, 2),
-                        "details": _round_details({"balance": balance_usd, "currency": (getattr(a, "currency", None) or getattr(acc, "currency", None)) or "USD"}),
-                    })
-                elif acc.type == AccountType.brokerage and a.balance is not None and not a.symbol:
                     balance_raw = float(a.balance)
                     currency = getattr(a, "currency", None) or getattr(acc, "currency", None)
+                    balance_usd = amount_to_usd(balance_raw, currency)
                     if balance_raw < 0:
-                        debt_usd = amount_to_usd(balance_raw, currency)
-                        val_at_year_usd = debt_usd * ((1 + margin_interest_rate) ** year_offset)
+                        rate = getattr(a, "debt_interest_rate", None)
+                        if rate is None:
+                            rate = margin_interest_rate
+                        else:
+                            rate = float(rate)
+                        val_at_year_usd = balance_usd * ((1 + rate) ** year_offset)
                         acc_value += val_at_year_usd
                         breakdown.append({
                             "year": d.year,
@@ -142,7 +137,42 @@ async def run_forecast(
                             "details": _round_details({
                                 "balance_start": balance_raw,
                                 "currency": currency or "USD",
-                                "margin_interest_rate": margin_interest_rate,
+                                "margin_interest_rate": rate,
+                                "balance_at_year_usd": val_at_year_usd,
+                            }),
+                        })
+                    else:
+                        acc_value += balance_usd
+                        breakdown.append({
+                            "year": d.year,
+                            "date": date_str,
+                            "label": _asset_label(acc, a),
+                            "type": "cash",
+                            "value": round(balance_usd, 2),
+                            "details": _round_details({"balance": balance_usd, "currency": currency or "USD"}),
+                        })
+                elif acc.type == AccountType.brokerage and a.balance is not None and not a.symbol:
+                    balance_raw = float(a.balance)
+                    currency = getattr(a, "currency", None) or getattr(acc, "currency", None)
+                    if balance_raw < 0:
+                        rate = getattr(a, "debt_interest_rate", None)
+                        if rate is None:
+                            rate = margin_interest_rate
+                        else:
+                            rate = float(rate)
+                        debt_usd = amount_to_usd(balance_raw, currency)
+                        val_at_year_usd = debt_usd * ((1 + rate) ** year_offset)
+                        acc_value += val_at_year_usd
+                        breakdown.append({
+                            "year": d.year,
+                            "date": date_str,
+                            "label": _asset_label(acc, a),
+                            "type": "margin",
+                            "value": round(val_at_year_usd, 2),
+                            "details": _round_details({
+                                "balance_start": balance_raw,
+                                "currency": currency or "USD",
+                                "margin_interest_rate": rate,
                                 "balance_at_year_usd": val_at_year_usd,
                             }),
                         })
@@ -203,8 +233,9 @@ async def run_forecast(
                         }),
                     })
                 elif acc.type == AccountType.property:
-                    pv = a.property_value and float(a.property_value) or 0.0
-                    mb = a.mortgage_balance and float(a.mortgage_balance) or 0.0
+                    prop_currency = getattr(a, "currency", None) or "USD"
+                    pv = amount_to_usd(float(a.property_value or 0), prop_currency)
+                    mb = amount_to_usd(float(a.mortgage_balance or 0), prop_currency)
                     cagr = (a.appreciation_cagr and float(a.appreciation_cagr)) or 0.03
                     pv_at_d = pv * ((1 + cagr) ** year_offset)
                     bal_at_d = mb

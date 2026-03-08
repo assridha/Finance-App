@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { accountsApi, assetsApi, symbolsApi, type Account, type AccountType, type Asset } from "../api";
+import { CURRENCY_OPTIONS } from "../constants/currencies";
 
 const ACCOUNT_TYPE_LABELS: Record<AccountType, { emoji: string; label: string }> = {
   cash: { emoji: "💵", label: "cash" },
@@ -8,21 +9,6 @@ const ACCOUNT_TYPE_LABELS: Record<AccountType, { emoji: string; label: string }>
   bitcoin: { emoji: "₿", label: "bitcoin" },
   property: { emoji: "🏠", label: "property" },
 };
-
-// Supported currencies for cash balance (most-used first). Code is 3-letter ISO.
-const CURRENCY_OPTIONS: { code: string; label: string }[] = [
-  { code: "USD", label: "USD – US Dollar" },
-  { code: "EUR", label: "EUR – Euro" },
-  { code: "JPY", label: "JPY – Japanese Yen" },
-  { code: "INR", label: "INR – Indian Rupee" },
-  { code: "GBP", label: "GBP – British Pound" },
-  { code: "CHF", label: "CHF – Swiss Franc" },
-  { code: "CAD", label: "CAD – Canadian Dollar" },
-  { code: "AUD", label: "AUD – Australian Dollar" },
-  { code: "CNY", label: "CNY – Chinese Yuan" },
-  { code: "SGD", label: "SGD – Singapore Dollar" },
-  { code: "HKD", label: "HKD – Hong Kong Dollar" },
-];
 
 // Primary colors (distinct hues) + darker variants for range and contrast
 const ACCOUNT_COLOR_PALETTE = [
@@ -241,7 +227,6 @@ function AddAccountForm({
 }) {
   const [name, setName] = useState("");
   const [type, setType] = useState<AccountType>("cash");
-  const [currency, setCurrency] = useState("USD");
   const [color, setColor] = useState<string | null>(null);
   return (
     <div className="card" style={{ marginBottom: "1rem" }}>
@@ -253,12 +238,6 @@ function AddAccountForm({
         <option value="brokerage">Brokerage</option>
         <option value="bitcoin">Bitcoin</option>
         <option value="property">Property</option>
-      </select>
-      <label>Currency</label>
-      <select value={currency} onChange={(e) => setCurrency(e.target.value)}>
-        {CURRENCY_OPTIONS.map((c) => (
-          <option key={c.code} value={c.code}>{c.label}</option>
-        ))}
       </select>
       <label>Color</label>
       <div style={{ display: "flex", flexWrap: "wrap", gap: 6, alignItems: "center" }}>
@@ -305,7 +284,7 @@ function AddAccountForm({
         </button>
       </div>
       <div style={{ marginTop: "1rem", display: "flex", gap: "0.5rem" }}>
-        <button className="primary" onClick={() => onSave({ name, type, currency, color })}>Save</button>
+        <button className="primary" onClick={() => onSave({ name, type, currency: "USD", color })}>Save</button>
         <button onClick={onCancel}>Cancel</button>
       </div>
     </div>
@@ -322,19 +301,12 @@ function EditAccountForm({
   onCancel: () => void;
 }) {
   const [name, setName] = useState(account.name);
-  const [currency, setCurrency] = useState(account.currency);
   const [color, setColor] = useState<string | null>(account.color ?? null);
 
   return (
     <div className="card" style={{ marginBottom: "1rem" }}>
       <label>Account name</label>
       <input value={name} onChange={(e) => setName(e.target.value)} />
-      <label>Currency</label>
-      <select value={currency} onChange={(e) => setCurrency(e.target.value)}>
-        {CURRENCY_OPTIONS.map((c) => (
-          <option key={c.code} value={c.code}>{c.label}</option>
-        ))}
-      </select>
       <label>Color</label>
       <div style={{ display: "flex", flexWrap: "wrap", gap: 6, alignItems: "center" }}>
         {ACCOUNT_COLOR_PALETTE.map((hex) => (
@@ -380,7 +352,7 @@ function EditAccountForm({
         </button>
       </div>
       <div style={{ marginTop: "1rem", display: "flex", gap: "0.5rem" }}>
-        <button className="primary" onClick={() => onSave({ name, currency, color })}>
+        <button className="primary" onClick={() => onSave({ name, color })}>
           Save
         </button>
         <button onClick={onCancel}>Cancel</button>
@@ -405,9 +377,11 @@ function AddAssetForm({
   const [btc_amount, setBtcAmount] = useState("");
   const [property_value, setPropertyValue] = useState("");
   const [mortgage_balance, setMortgageBalance] = useState("");
+  const [propertyCurrency, setPropertyCurrency] = useState("USD");
   const [appreciation_cagr, setAppreciationCagr] = useState("");
   const [mortgage_annual_rate, setMortgageRate] = useState("");
   const [mortgage_term_months, setMortgageTerm] = useState("");
+  const [debt_interest_rate, setDebtInterestRate] = useState("");
   const [symbolError, setSymbolError] = useState<string | null>(null);
   const [validating, setValidating] = useState(false);
   const [brokerageAddMode, setBrokerageAddMode] = useState<"position" | "cash">("position");
@@ -490,8 +464,20 @@ function AddAssetForm({
                 <option key={c.code} value={c.code}>{c.label}</option>
               ))}
             </select>
+            <label>Debt interest rate (annual, e.g. 0.08 for 8%)</label>
+            <input type="number" step="0.01" min="0" value={debt_interest_rate} onChange={(e) => setDebtInterestRate(e.target.value)} placeholder="optional" />
             <div style={{ marginTop: "1rem", display: "flex", gap: "0.5rem" }}>
-              <button className="primary" onClick={() => onSave({ balance: parseFloat(balance) || 0, currency })}>Save</button>
+              <button
+                className="primary"
+                onClick={() => {
+                  const payload: Partial<Asset> = { balance: parseFloat(balance) || 0, currency };
+                  const rateVal = debt_interest_rate.trim() ? parseFloat(debt_interest_rate) : undefined;
+                  if (rateVal != null && Number.isFinite(rateVal) && rateVal >= 0) payload.debt_interest_rate = rateVal;
+                  onSave(payload);
+                }}
+              >
+                Save
+              </button>
               <button onClick={onCancel}>Cancel</button>
             </div>
           </>
@@ -513,6 +499,12 @@ function AddAssetForm({
   }
   return (
     <div className="card" style={{ marginBottom: "1rem" }}>
+      <label>Currency (for value and mortgage)</label>
+      <select value={propertyCurrency} onChange={(e) => setPropertyCurrency(e.target.value)}>
+        {CURRENCY_OPTIONS.map((c) => (
+          <option key={c.code} value={c.code}>{c.label}</option>
+        ))}
+      </select>
       <label>Property value</label>
       <input type="number" value={property_value} onChange={(e) => setPropertyValue(e.target.value)} />
       <label>Mortgage balance</label>
@@ -530,6 +522,7 @@ function AddAssetForm({
             onSave({
               property_value: parseFloat(property_value) || 0,
               mortgage_balance: parseFloat(mortgage_balance) || 0,
+              currency: propertyCurrency,
               appreciation_cagr: appreciation_cagr ? parseFloat(appreciation_cagr) : undefined,
               mortgage_annual_rate: mortgage_annual_rate ? parseFloat(mortgage_annual_rate) : undefined,
               mortgage_term_remaining_months: mortgage_term_months ? parseInt(mortgage_term_months, 10) : undefined,
@@ -556,12 +549,19 @@ function EditPropertyForm({
 }) {
   const [property_value, setPropertyValue] = useState(String(asset.property_value ?? ""));
   const [mortgage_balance, setMortgageBalance] = useState(String(asset.mortgage_balance ?? ""));
+  const [propertyCurrency, setPropertyCurrency] = useState(asset.currency ?? "USD");
   const [appreciation_cagr, setAppreciationCagr] = useState(asset.appreciation_cagr != null ? String(asset.appreciation_cagr) : "");
   const [mortgage_annual_rate, setMortgageRate] = useState(asset.mortgage_annual_rate != null ? String(asset.mortgage_annual_rate) : "");
   const [mortgage_term_months, setMortgageTerm] = useState(asset.mortgage_term_remaining_months != null ? String(asset.mortgage_term_remaining_months) : "");
 
   return (
     <div className="card" style={{ marginBottom: 0, padding: "0.75rem" }}>
+      <label>Currency (for value and mortgage)</label>
+      <select value={propertyCurrency} onChange={(e) => setPropertyCurrency(e.target.value)}>
+        {CURRENCY_OPTIONS.map((c) => (
+          <option key={c.code} value={c.code}>{c.label}</option>
+        ))}
+      </select>
       <label>Property value</label>
       <input type="number" value={property_value} onChange={(e) => setPropertyValue(e.target.value)} />
       <label>Mortgage balance</label>
@@ -579,6 +579,7 @@ function EditPropertyForm({
             onSave({
               property_value: parseFloat(property_value) || 0,
               mortgage_balance: parseFloat(mortgage_balance) || 0,
+              currency: propertyCurrency,
               appreciation_cagr: appreciation_cagr ? parseFloat(appreciation_cagr) : undefined,
               mortgage_annual_rate: mortgage_annual_rate ? parseFloat(mortgage_annual_rate) : undefined,
               mortgage_term_remaining_months: mortgage_term_months ? parseInt(mortgage_term_months, 10) : undefined,
@@ -609,30 +610,44 @@ function AssetRow({
   const [val, setVal] = useState("");
 
   const isBrokerageCash = accountType === "brokerage" && asset.balance != null && !asset.symbol;
+  const marginDebtLabel =
+    Number(asset.balance) < 0
+      ? asset.debt_interest_rate != null
+        ? `Margin debt @ ${(Number(asset.debt_interest_rate) * 100).toFixed(0)}%`
+        : "Margin debt"
+      : "Cash";
   const display =
     accountType === "cash"
       ? `${asset.balance} ${asset.currency ?? "USD"}`
       : accountType === "brokerage"
       ? isBrokerageCash
-        ? `${asset.balance} ${asset.currency ?? "USD"} (${Number(asset.balance) < 0 ? "Margin debt" : "Cash"})`
+        ? `${asset.balance} ${asset.currency ?? "USD"} (${marginDebtLabel})`
         : `${asset.symbol} × ${asset.shares}`
       : accountType === "bitcoin"
       ? `${asset.btc_amount} BTC`
       : null;
+  const propertyCurrencyLabel = (asset.currency ?? "USD").trim() || "USD";
   const propertyDisplay =
     accountType === "property" ? (
       <div style={{ fontSize: "0.875rem", lineHeight: 1.5 }}>
-        <div>Value: {asset.property_value?.toLocaleString() ?? "—"}, Mortgage: {asset.mortgage_balance?.toLocaleString() ?? "—"}</div>
+        <div>Value: {asset.property_value?.toLocaleString() ?? "—"} {propertyCurrencyLabel}, Mortgage: {asset.mortgage_balance?.toLocaleString() ?? "—"} {propertyCurrencyLabel}</div>
         <div>Interest rate: {asset.mortgage_annual_rate != null ? `${(Number(asset.mortgage_annual_rate) * 100).toFixed(2)}%` : "—"}, Term: {asset.mortgage_term_remaining_months ?? "—"} mo</div>
         <div>Appreciation CAGR: {asset.appreciation_cagr != null ? `${(Number(asset.appreciation_cagr) * 100).toFixed(2)}%` : "—"}, Payment: {asset.payment_frequency ?? "—"}</div>
       </div>
     ) : null;
 
   const [editCurrency, setEditCurrency] = useState(asset.currency ?? "USD");
+  const [editDebtRate, setEditDebtRate] = useState(
+    asset.debt_interest_rate != null ? String(asset.debt_interest_rate) : ""
+  );
   const commitEdit = () => {
     if (accountType === "cash") onUpdate({ balance: parseFloat(val) || 0, currency: editCurrency });
-    else if (accountType === "brokerage" && isBrokerageCash) onUpdate({ balance: parseFloat(val) || 0, currency: editCurrency });
-    else if (accountType === "brokerage") onUpdate({ shares: parseFloat(val) || 0 });
+    else if (accountType === "brokerage" && isBrokerageCash) {
+      const payload: Partial<Asset> = { balance: parseFloat(val) || 0, currency: editCurrency };
+      payload.debt_interest_rate =
+        editDebtRate === "" ? null : (Number.isFinite(parseFloat(editDebtRate)) && parseFloat(editDebtRate) >= 0 ? parseFloat(editDebtRate) : asset.debt_interest_rate ?? null);
+      onUpdate(payload);
+    } else if (accountType === "brokerage") onUpdate({ shares: parseFloat(val) || 0 });
     else if (accountType === "bitcoin") onUpdate({ btc_amount: parseFloat(val) || 0 });
     else onUpdate({ property_value: parseFloat(val) || 0 });
     setEditing(false);
@@ -677,6 +692,20 @@ function AssetRow({
               ))}
             </select>
           )}
+          {isBrokerageCash && (
+            <>
+              <label style={{ marginLeft: 8 }}>Debt rate (annual):</label>
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                value={editDebtRate}
+                onChange={(e) => setEditDebtRate(e.target.value)}
+                placeholder="optional"
+                style={{ marginLeft: 4, width: 80 }}
+              />
+            </>
+          )}
           <button className="primary" onClick={commitEdit}>Save</button>
           <button onClick={() => setEditing(false)}>Cancel</button>
         </td>
@@ -693,6 +722,7 @@ function AssetRow({
             else {
               setVal(String(asset.shares ?? asset.balance ?? asset.btc_amount ?? asset.property_value ?? ""));
               setEditCurrency(asset.currency ?? "USD");
+              setEditDebtRate(asset.debt_interest_rate != null ? String(asset.debt_interest_rate) : "");
               setEditing(true);
             }
           }}

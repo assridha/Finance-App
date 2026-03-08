@@ -50,10 +50,12 @@ From repo root, run backend in one terminal and frontend in another (or use a si
 - **Accounts:** `GET/POST /api/accounts`, `GET/PATCH/DELETE /api/accounts/:id`
 - **Assets:** `GET /api/assets/account/:id`, `POST /api/assets/account/:id`, `GET/PATCH/DELETE /api/assets/:id`, `GET /api/assets/:id/history`
 - **Cashflows:** `GET/POST /api/cashflows`, `GET/PATCH/DELETE /api/cashflows/:id`
-- **Portfolio:** `GET /api/portfolio/current`, `GET /api/portfolio/history`, `POST /api/portfolio/snapshot`, `GET /api/portfolio/estimated-mortgage-payments`
+- **Portfolio:** `GET /api/portfolio/current`, `GET /api/portfolio/history`, `POST /api/portfolio/snapshot`, `GET /api/portfolio/estimated-mortgage-payments`, `GET /api/portfolio/cash-debt-interest` (optional `margin_interest_rate` query = default rate for assets without a per-asset rate)
 - **Prices:** `GET /api/prices` (optional query: `recalculate=SYM1,SYM2`), `POST /api/prices/recalculate`
+- **Price models:** `GET /api/price-models/symbols`, `GET /api/price-models/chart?symbol=AAPL` (historical price + fitted model and 5th/95th bands for charting)
 - **Forecast:** `POST /api/forecast`
 - **Symbols:** `GET /api/symbols/validate?symbol=AAPL` (validate ticker against Yahoo Finance)
+- **FX:** `GET /api/fx/rate?from=USD&to=EUR` (optional `date=YYYY-MM-DD` for historical rate; amount_from × rate = amount_to)
 - **Backup:** `GET /api/backup/export`, `POST /api/backup/import` (requires `confirm=true` for restore)
 
 ## Features
@@ -64,12 +66,15 @@ From repo root, run backend in one terminal and frontend in another (or use a si
 - **Live prices** (yfinance) for stocks and BTC-USD; 24h change
 - **Price models:** regression-based fair value and 5th/95th percentile bands per symbol; current-price quantile within bands. Models: stocks (log price vs time), Bitcoin (log price vs log days since genesis), IBIT (BTC model + BTC/IBIT ratio). Optional force-refresh via `recalculate` query or `POST /api/prices/recalculate`.
 - **Portfolio:** current value (fair value and optional market total), value over time (snapshots), historical chart, estimated monthly mortgage payments per property with active mortgage
-- **Forecast:** floor + VaR for stocks/Bitcoin, property appreciation and mortgage payoff, brokerage cash/margin (negative balance compounds at margin rate), cashflow bucket with CAGR. All values in **USD** (unit of account); frontend can display in another currency via its own conversion.
+- **Forecast:** floor + VaR for stocks/Bitcoin, property appreciation and mortgage payoff, brokerage cash/margin (negative balance compounds at per-asset or default debt rate), cashflow bucket with CAGR. All values in **USD** (unit of account); frontend can display in another currency via its own conversion.
+- **Display currency:** Settings option to show all account values, prices, and totals in a chosen currency (e.g. EUR); backend remains USD; frontend uses FX rate for conversion.
+- **Price Models page:** chart of historical price vs date with fitted regression model and 5th/95th percentile bands; symbol selector from portfolio assets.
+- **Default debt interest rate:** in Settings; used for margin/cash debt in forecast when an asset does not specify its own rate.
 - **Backup/restore:** download .db, upload to restore (requires confirm)
 
 ## How the forecast model works
 
-The forecast projects your portfolio value year-by-year over a configurable horizon (default 10 years). You can set `horizon_years`, `margin_interest_rate`, and `cashflow_bucket_cagr` when calling `POST /api/forecast`.
+The forecast projects your portfolio value year-by-year over a configurable horizon (default 10 years). You can set `horizon_years`, `margin_interest_rate` (default rate for margin/debt when an asset does not specify one), and `cashflow_bucket_cagr` when calling `POST /api/forecast`. The frontend uses the default debt interest rate from **Settings** when running a forecast.
 
 ### Time steps
 
@@ -85,7 +90,7 @@ The forecast projects your portfolio value year-by-year over a configurable hori
 | **Bitcoin** | BTC amount × **fair price at that date**. Fair price and bands come from the Bitcoin model (log price vs log days since genesis). |
 | **IBIT** | Uses the Bitcoin model’s fair/floor/ceiling at the date, then multiplies by the stored **BTC/IBIT ratio** to get IBIT fair and bands. |
 | **Property** | **Value:** current property value compounded at the asset’s **appreciation CAGR** to that year. **Mortgage:** balance is amortized month-by-month (annuity formula); the forecast uses the balance at the start of that year. **Net** = property value at year − mortgage balance at year. If no mortgage or missing terms, net = property value only. |
-| **Brokerage cash** | Add a **cash balance** asset on a brokerage account. **Negative balance** = margin debt: compounds at `margin_interest_rate` each year. **Positive balance** = cash: constant (0% return). Multi-currency: balances are converted to **USD** for all calculations; API returns `unit_of_account: "USD"`. |
+| **Brokerage cash** | Add a **cash balance** asset on a brokerage account. **Negative balance** = margin debt: compounds each year at the asset’s **debt interest rate** if set, otherwise at the default rate (from Settings in the UI or the request’s `margin_interest_rate`). **Positive balance** = cash: constant (0% return). Multi-currency: balances are converted to **USD** for all calculations; API returns `unit_of_account: "USD"`. |
 
 ### Unit of account
 
@@ -129,3 +134,17 @@ The forecast projects your portfolio value year-by-year over a configurable hori
 - **Backend**
   - **DB migration**: adds `accounts.color` if missing (no manual migration needed for existing DBs).
   - **Symbols**: `GET /api/symbols/validate?symbol=X` for ticker validation with caching.
+
+## Changelog: Version 1.2
+
+- **Display currency**
+  - **Settings** → Display currency: choose currency for all displayed values (USD, EUR, GBP, etc.). Backend stays in USD; frontend converts via `GET /api/fx/rate`.
+  - **FX API**: `GET /api/fx/rate?from=&to=&date=` (optional date for historical rate). Used by DisplayCurrencyContext and for cashflow/portfolio display.
+  - **Constants**: `frontend/src/constants/currencies.ts`; **Contexts**: `DisplayCurrencyContext`, `DefaultDebtInterestRateContext`.
+
+- **Price Models**
+  - New **Price models** nav page: historical price + fitted regression (fair value + 5th/95th bands) per symbol. APIs: `GET /api/price-models/symbols`, `GET /api/price-models/chart?symbol=X`.
+  - Backend: `api/price_models.py`, `schemas/price_models.py`; extended `price_model_service` for chart data.
+
+- **Settings**
+  - **Default debt interest rate** in Settings: annual rate used for margin/debt in forecast when an asset has no per-asset rate. Stored in frontend (localStorage) and passed to forecast and cash-debt-interest APIs when needed.
