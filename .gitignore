@@ -54,3 +54,9 @@ htmlcov/
 
 # Build / Docker (optional local overrides)
 docker-compose.override.yml
+
+# Community app store app folder (duplicate of root backend/frontend)
+finance-asset-tracker/frontend/node_modules/
+finance-asset-tracker/frontend/dist/
+finance-asset-tracker/backend/.venv/
+finance-asset-tracker/backend/data/

@@ -1,0 +1,22 @@
+manifestVersion: 1
+id: finance-asset-tracker
+category: finance
+name: Personal Finance Asset Tracker
+version: "0.1.0"
+tagline: Track assets, cashflows, and forecast portfolio growth
+description: >-
+  Track personal assets across cash, brokerage, Bitcoin, and property accounts.
+  Record quantity history, income and expenses with duration, and view live prices
+  via yfinance. Forecast engine uses floor + VaR models, property appreciation
+  and mortgage, margin debt interest, and a cashflow bucket.
+releaseNotes: "Initial release. Track assets, cashflows, portfolio, and forecast with floor + VaR."
+developer: ""
+website: ""
+dependencies: []
+repo: "https://github.com/yourusername/Finance-App"
+support: "https://github.com/yourusername/Finance-App/issues"
+port: 8000
+gallery: []
+path: ""
+defaultUsername: ""
+defaultPassword: ""
