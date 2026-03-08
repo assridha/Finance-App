@@ -26,6 +26,8 @@ async def get_portfolio_current(db: AsyncSession = Depends(get_db)):
                 account_name=x["account_name"],
                 value=x["value"],
                 market_value=x.get("market_value"),
+                value_floor_5=x.get("value_floor_5"),
+                value_ceiling_95=x.get("value_ceiling_95"),
                 color=x.get("color"),
             )
             for x in by_account
@@ -54,13 +56,24 @@ async def get_portfolio_history(
             try:
                 raw = json.loads(s.breakdown_json)
                 by_account = [
-                    AccountValueItem(account_id=x["account_id"], account_name=x["account_name"], value=float(x["value"]))
+                    AccountValueItem(
+                        account_id=x["account_id"],
+                        account_name=x["account_name"],
+                        value=float(x["value"]),
+                        market_value=float(x["market_value"]) if x.get("market_value") is not None else None,
+                        color=x.get("color"),
+                    )
                     for x in raw
                 ]
             except (json.JSONDecodeError, KeyError, TypeError):
                 pass
         history_items.append(
-            PortfolioHistoryItem(date=s.date.isoformat(), total_value=float(s.total_value), by_account=by_account)
+            PortfolioHistoryItem(
+                date=s.date.isoformat(),
+                total_value=float(s.total_value),
+                total_market_value=float(s.total_market_value) if s.total_market_value is not None else None,
+                by_account=by_account,
+            )
         )
     return PortfolioHistoryResponse(history=history_items)
 

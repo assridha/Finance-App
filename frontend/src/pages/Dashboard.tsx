@@ -3,6 +3,7 @@ import { useQueries, useQuery, useMutation, useQueryClient } from "@tanstack/rea
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts";
 import { accountsApi, portfolioApi, fxApi, type AccountType } from "../api";
 import { useDisplayCurrency } from "../contexts/DisplayCurrencyContext";
+import { getCurrencySymbol } from "../utils/currency";
 
 const ACCOUNT_TYPE_EMOJI: Record<AccountType, string> = {
   cash: "💵",
@@ -55,8 +56,9 @@ export default function Dashboard() {
     });
     return map;
   }, [displayCurrency, uniqueDates, historicalRateQueries]);
-  const safeByAccount = (list: { by_account?: { account_name: string; value: number }[] | null }[] | undefined) =>
-    (list ?? []).flatMap((h) => (h.by_account ?? []).filter((a) => a != null && a.account_name != null));
+  const safeByAccount = (
+    list: { by_account?: { account_name: string; value: number; market_value?: number | null }[] | null }[] | undefined
+  ) => (list ?? []).flatMap((h) => (h.by_account ?? []).filter((a) => a != null && a.account_name != null));
   const historyOnlyNames = Array.from(
     new Set(
       safeByAccount(historyList)
@@ -103,11 +105,15 @@ export default function Dashboard() {
       if (hasBreakdown && allChartAccountNames.length > 0) {
         return historyList.map((h) => {
           const r = rateFor(h.date);
-          const row: Record<string, string | number> = { date: h.date, total_value: Number(h.total_value) * r };
+          const total = (h.total_market_value ?? h.total_value) * r;
+          const row: Record<string, string | number> = { date: h.date, total_value: total };
           const byName = new Map(
             (h.by_account ?? [])
-              .filter((a): a is { account_name: string; value: number } => a != null && a.account_name != null)
-              .map((a) => [a.account_name, (a.value ?? 0) * r])
+              .filter(
+                (a): a is { account_name: string; value: number; market_value?: number | null } =>
+                  a != null && a.account_name != null
+              )
+              .map((a) => [a.account_name, ((a.market_value ?? a.value) ?? 0) * r])
           );
           allChartAccountNames.forEach((name) => {
             row[name] = includedAccounts.has(name) ? (byName.get(name) ?? 0) : 0;
@@ -115,7 +121,10 @@ export default function Dashboard() {
           return row;
         });
       }
-      return historyList.map((h) => ({ date: h.date, total_value: Number(h.total_value) * rateFor(h.date) }));
+      return historyList.map((h) => ({
+        date: h.date,
+        total_value: Number(h.total_market_value ?? h.total_value) * rateFor(h.date),
+      }));
     } catch {
       return [];
     }
@@ -127,15 +136,15 @@ export default function Dashboard() {
       <div className="card" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <div>
           <div style={{ color: "#71717a", fontSize: "0.875rem" }}>
-            Total portfolio value (fair){displayCurrency !== "USD" ? ` (${displayCurrency})` : ""}
+            Total portfolio value{displayCurrency !== "USD" ? ` (${getCurrencySymbol(displayCurrency)})` : ""}
           </div>
           <div style={{ fontSize: "1.75rem", fontWeight: 600 }}>
-            {formatUsdForDisplay(current?.total_value ?? 0)}
+            {formatUsdForDisplay(current?.total_market_value ?? current?.total_value ?? 0)}
           </div>
           {current?.total_market_value != null &&
             Math.abs((current.total_market_value ?? 0) - (current.total_value ?? 0)) > 0.01 && (
               <div style={{ color: "#71717a", fontSize: "0.875rem", marginTop: "0.25rem" }}>
-                Market: {formatUsdForDisplay(current.total_market_value)}
+                Fair: {formatUsdForDisplay(current.total_value)}
               </div>
             )}
         </div>
@@ -166,7 +175,13 @@ export default function Dashboard() {
                   />
                   <span style={{ opacity: 0.9 }}>{emoji}</span>
                   <span>
-                    {a.account_name}: {formatUsdForDisplay(a.value)}
+                    {a.account_name}: {formatUsdForDisplay(a.market_value ?? a.value)}
+                    {a.market_value != null &&
+                      Math.abs((a.market_value ?? 0) - (a.value ?? 0)) > 0.01 && (
+                        <span style={{ display: "block", color: "#71717a", fontSize: "0.875rem", marginTop: "0.25rem" }}>
+                          Fair: {formatUsdForDisplay(a.value)}
+                        </span>
+                      )}
                   </span>
                 </li>
               );
@@ -310,10 +325,14 @@ export default function Dashboard() {
               <tbody>
                 {[...historyList].reverse().map((h) => {
                   const r = ratesByDate[h.date] ?? 1;
+                  const totalForDate = (h.total_market_value ?? h.total_value) * r;
                   const byName = new Map(
                     (h.by_account ?? [])
-                      .filter((a): a is { account_name: string; value: number } => a != null && a.account_name != null)
-                      .map((a) => [a.account_name, (a.value ?? 0) * r])
+                      .filter(
+                        (a): a is { account_name: string; value: number; market_value?: number | null } =>
+                          a != null && a.account_name != null
+                      )
+                      .map((a) => [a.account_name, ((a.market_value ?? a.value) ?? 0) * r])
                   );
                   return (
                     <tr key={h.date} style={{ borderBottom: "1px solid #27272a" }}>
@@ -327,7 +346,7 @@ export default function Dashboard() {
                         );
                       })}
                       <td style={{ textAlign: "right", padding: "0.5rem 0.75rem", fontWeight: 500 }}>
-                        {formatDisplayAmount(h.total_value * r)}
+                        {formatDisplayAmount(totalForDate)}
                       </td>
                     </tr>
                   );

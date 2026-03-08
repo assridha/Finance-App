@@ -32,11 +32,21 @@ def _asset_label(acc: Account, a: Asset) -> str:
     return acc.name
 
 
+def _price_for_level(price_level: str, fair_price: float, floor_5: float, ceiling_95: float) -> float:
+    """Return the price to use for valuation based on price_level."""
+    if price_level == "optimistic":
+        return ceiling_95
+    if price_level == "worst_case":
+        return floor_5
+    return fair_price
+
+
 async def run_forecast(
     db: AsyncSession,
     horizon_years: float = 10,
     margin_interest_rate: float = 0.08,
     cashflow_bucket_cagr: float = 0.05,
+    price_level: str = "fair",
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     """Return (series, breakdown). Uses regression-based fair value per asset (stocks, Bitcoin, IBIT)."""
     today = date.today()
@@ -195,7 +205,8 @@ async def run_forecast(
                     else:
                         fair_price = (prices.get(sym) or {}).get("price") or 0.0
                         floor_5 = ceiling_95 = fair_price
-                    val = float(a.shares) * fair_price
+                    price_used = _price_for_level(price_level, fair_price, floor_5, ceiling_95)
+                    val = float(a.shares) * price_used
                     acc_value += val
                     breakdown.append({
                         "year": d.year,
@@ -217,7 +228,8 @@ async def run_forecast(
                     else:
                         fair_price = (prices.get("BTC-USD") or {}).get("price") or 0.0
                         floor_5 = ceiling_95 = fair_price
-                    val = float(a.btc_amount) * fair_price
+                    price_used = _price_for_level(price_level, fair_price, floor_5, ceiling_95)
+                    val = float(a.btc_amount) * price_used
                     acc_value += val
                     breakdown.append({
                         "year": d.year,

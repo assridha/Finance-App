@@ -42,6 +42,14 @@ def _migrate_asset_debt_interest_rate(sync_conn):
         sync_conn.execute(text("ALTER TABLE assets ADD COLUMN debt_interest_rate NUMERIC(8, 4)"))
 
 
+def _migrate_portfolio_snapshot_total_market_value(sync_conn):
+    """Add portfolio_snapshots.total_market_value column if missing."""
+    r = sync_conn.execute(text("PRAGMA table_info(portfolio_snapshots)"))
+    rows = r.fetchall()
+    if not any(len(row) > 1 and row[1] == "total_market_value" for row in rows):
+        sync_conn.execute(text("ALTER TABLE portfolio_snapshots ADD COLUMN total_market_value NUMERIC(20, 4)"))
+
+
 def _migrate_margin_to_cash_assets(sync_conn):
     """One-off: for accounts with is_margin=1 and margin_debt > 0, create a cash asset with balance=-margin_debt."""
     sync_conn.execute(text(
@@ -80,4 +88,5 @@ async def init_db():
         await conn.run_sync(Base.metadata.create_all)
         await conn.run_sync(_migrate_account_color)
         await conn.run_sync(_migrate_asset_debt_interest_rate)
+        await conn.run_sync(_migrate_portfolio_snapshot_total_market_value)
         await conn.run_sync(_migrate_margin_to_cash_assets)

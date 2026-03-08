@@ -8,7 +8,6 @@ import Accounts from "./pages/Accounts";
 import Cashflows from "./pages/Cashflows";
 import Prices from "./pages/Prices";
 import Forecast from "./pages/Forecast";
-import PriceModels from "./pages/PriceModels";
 import Settings from "./pages/Settings";
 
 const queryClient = new QueryClient({
@@ -30,7 +29,6 @@ function App() {
                 <Route path="cashflows" element={<Cashflows />} />
                 <Route path="prices" element={<Prices />} />
                 <Route path="forecast" element={<Forecast />} />
-                <Route path="price-models" element={<PriceModels />} />
                 <Route path="settings" element={<Settings />} />
                 <Route path="*" element={<Navigate to="/" replace />} />
               </Route>

@@ -42,9 +42,18 @@ const DETAIL_LABELS: Record<string, string> = {
   margin_debt_at_year: "Margin debt (year)",
 };
 
+type PriceLevel = "fair" | "optimistic" | "worst_case";
+
+const PRICE_LEVEL_LABEL: Record<PriceLevel, string> = {
+  fair: "fair value",
+  optimistic: "optimistic",
+  worst_case: "worst case",
+};
+
 export default function Forecast() {
   const [horizonYears, setHorizonYears] = useState(10);
   const [cashflowCagr, setCashflowCagr] = useState(0.05);
+  const [priceLevel, setPriceLevel] = useState<PriceLevel>("fair");
   const { formatUsdForDisplay, formatDisplayAmount, rateUsdToDisplay } = useDisplayCurrency();
   const { defaultDebtInterestRate } = useDefaultDebtInterestRate();
 
@@ -54,12 +63,13 @@ export default function Forecast() {
   });
 
   const { data, isLoading, isFetching, refetch } = useQuery({
-    queryKey: ["forecast", horizonYears, defaultDebtInterestRate, cashflowCagr],
+    queryKey: ["forecast", horizonYears, defaultDebtInterestRate, cashflowCagr, priceLevel],
     queryFn: () =>
       forecastApi.run({
         horizon_years: horizonYears,
         margin_interest_rate: defaultDebtInterestRate,
         cashflow_bucket_cagr: cashflowCagr,
+        price_level: priceLevel,
       }),
     enabled: false,
   });
@@ -86,9 +96,9 @@ export default function Forecast() {
       name === "Cashflow bucket" ? CASHFLOW_BUCKET_COLOR : (m[name] ?? ACCOUNT_COLORS[(forecastSeriesNames.indexOf(name) - 1) % ACCOUNT_COLORS.length]);
   }, [series, forecastSeriesNames]);
 
-  /** Stack order for the chart: accounts on top, Cashflow bucket at base (drawn last = bottom in Recharts). */
+  /** Stack order for the chart: Cashflow bucket at base (drawn first), then accounts stacked on top. */
   const forecastStackOrder = useMemo(
-    () => [...forecastSeriesNames.filter((n) => n !== "Cashflow bucket"), "Cashflow bucket"],
+    () => ["Cashflow bucket", ...forecastSeriesNames.filter((n) => n !== "Cashflow bucket")],
     [forecastSeriesNames]
   );
 
@@ -153,12 +163,20 @@ export default function Forecast() {
     if (byAccount.length === 0) return [];
     const marketRow: Record<string, string | number> = { name: "Market value" };
     const fairRow: Record<string, string | number> = { name: "Fair value" };
+    const floorRow: Record<string, string | number> = { name: "Worst case" };
+    const ceilingRow: Record<string, string | number> = { name: "Optimistic" };
     byAccount.forEach((a) => {
       const market = a.market_value ?? a.value;
-      marketRow[a.account_name] = includedAccounts.has(a.account_name) ? (market ?? 0) * rateUsdToDisplay : 0;
-      fairRow[a.account_name] = includedAccounts.has(a.account_name) ? (a.value ?? 0) * rateUsdToDisplay : 0;
+      const floor = a.value_floor_5 ?? a.value;
+      const ceiling = a.value_ceiling_95 ?? a.value;
+      const r = rateUsdToDisplay;
+      const inc = includedAccounts.has(a.account_name);
+      marketRow[a.account_name] = inc ? (market ?? 0) * r : 0;
+      fairRow[a.account_name] = inc ? (a.value ?? 0) * r : 0;
+      floorRow[a.account_name] = inc ? (floor ?? 0) * r : 0;
+      ceilingRow[a.account_name] = inc ? (ceiling ?? 0) * r : 0;
     });
-    return [marketRow, fairRow];
+    return [marketRow, fairRow, floorRow, ceilingRow];
   }, [portfolio?.by_account, includedAccounts, rateUsdToDisplay]);
 
   const detailKeys = useMemo(() => {
@@ -168,6 +186,43 @@ export default function Forecast() {
     }
     return Array.from(set).sort();
   }, [breakdown]);
+
+  /** Max value in bar chart data for Y-axis width calculation */
+  const barChartMaxY = useMemo(() => {
+    let max = 0;
+    presentDayBarData.forEach((row) => {
+      Object.entries(row).forEach(([k, v]) => {
+        if (k !== "name" && typeof v === "number") max = Math.max(max, v);
+      });
+    });
+    return max;
+  }, [presentDayBarData]);
+
+  /** Max value actually shown on area chart (included series only) so Y-axis width matches visible scale */
+  const areaChartMaxY = useMemo(() => {
+    if (series.length === 0) return 0;
+    const r = rateUsdToDisplay;
+    let max = 0;
+    series.forEach((s) => {
+      let sum = 0;
+      if (includedForecastSeries.has("Cashflow bucket")) sum += (s.cashflow_bucket ?? 0) * r;
+      Object.entries(s.account_values ?? {}).forEach(([name, v]) => {
+        if (includedForecastSeries.has(name)) sum += (v as number) * r;
+      });
+      max = Math.max(max, sum);
+    });
+    return max;
+  }, [series, rateUsdToDisplay, [...includedForecastSeries].sort().join(",")]);
+
+  /** Dynamic Y-axis width: minimal space for formatted ticks to avoid cropping and excess left gap */
+  const yAxisWidth = (maxValue: number) => {
+    const formatted = formatDisplayAmount(maxValue);
+    const estimatedPx = formatted.length * 5 + 10;
+    return Math.max(52, Math.min(88, estimatedPx));
+  };
+
+  const barYAxisWidth = yAxisWidth(barChartMaxY);
+  const areaYAxisWidth = yAxisWidth(areaChartMaxY);
 
   return (
     <div style={{ width: "100%", minWidth: 0, maxWidth: "100%", overflow: "hidden" }}>
@@ -197,6 +252,18 @@ export default function Forecast() {
             style={{ width: 80 }}
           />
         </div>
+        <div>
+          <label>Price level</label>
+          <select
+            value={priceLevel}
+            onChange={(e) => setPriceLevel(e.target.value as PriceLevel)}
+            style={{ minWidth: 140 }}
+          >
+            <option value="fair">Fair value</option>
+            <option value="optimistic">Optimistic</option>
+            <option value="worst_case">Worst case</option>
+          </select>
+        </div>
         <button className="primary" onClick={() => refetch()} disabled={isFetching}>
           {isFetching ? "Running…" : "Run forecast"}
         </button>
@@ -215,10 +282,10 @@ export default function Forecast() {
             </p>
             <div style={{ height: 320, minHeight: 320 }}>
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={presentDayBarData} margin={{ top: 8, right: 8, left: 56, bottom: 8 }}>
+                <BarChart data={presentDayBarData} margin={{ top: 8, right: 8, left: barYAxisWidth, bottom: 32 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#27272a" />
-                  <XAxis dataKey="name" stroke="#71717a" />
-                  <YAxis stroke="#71717a" width={52} tickFormatter={(v) => formatDisplayAmount(Number(v))} />
+                  <XAxis dataKey="name" stroke="#71717a" interval={0} />
+                  <YAxis stroke="#71717a" width={barYAxisWidth} tickFormatter={(v) => formatDisplayAmount(Number(v))} />
                   <Tooltip
                     formatter={(v: number | undefined, name?: string) =>
                       name != null && !includedAccounts.has(name) ? null : [
@@ -299,7 +366,7 @@ export default function Forecast() {
 
       <div className="card" style={{ maxWidth: "100%", overflow: "hidden" }}>
         <p style={{ color: "#71717a", fontSize: "0.875rem", marginBottom: "0.75rem" }}>
-          Cumulative fair value over time: cashflow bucket (base) plus per-account portfolio value stacked on top. Click a legend label to include or exclude it.
+          Cumulative {PRICE_LEVEL_LABEL[priceLevel]} over time: cashflow bucket (base) plus per-account portfolio value stacked on top. Click a legend label to include or exclude it.
         </p>
         <div style={{ height: 400, minHeight: 400 }}>
         {isLoading ? (
@@ -330,11 +397,11 @@ export default function Forecast() {
                     });
                     return point;
                   })}
-                  margin={{ top: 8, right: 8, left: 56, bottom: 8 }}
+                  margin={{ top: 8, right: 8, left: areaYAxisWidth, bottom: 8 }}
                 >
                   <CartesianGrid strokeDasharray="3 3" stroke="#27272a" />
                   <XAxis dataKey="date" stroke="#71717a" />
-                  <YAxis stroke="#71717a" width={52} tickFormatter={(v) => formatDisplayAmount(Number(v))} />
+                  <YAxis stroke="#71717a" width={areaYAxisWidth} tickFormatter={(v) => formatDisplayAmount(Number(v))} />
                   <Tooltip
                     content={({ payload, label, active }) => {
                       if (!active || !payload?.length) return null;

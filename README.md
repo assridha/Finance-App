@@ -50,10 +50,10 @@ From repo root, run backend in one terminal and frontend in another (or use a si
 - **Accounts:** `GET/POST /api/accounts`, `GET/PATCH/DELETE /api/accounts/:id`
 - **Assets:** `GET /api/assets/account/:id`, `POST /api/assets/account/:id`, `GET/PATCH/DELETE /api/assets/:id`, `GET /api/assets/:id/history`
 - **Cashflows:** `GET/POST /api/cashflows`, `GET/PATCH/DELETE /api/cashflows/:id`
-- **Portfolio:** `GET /api/portfolio/current`, `GET /api/portfolio/history`, `POST /api/portfolio/snapshot`, `GET /api/portfolio/estimated-mortgage-payments`, `GET /api/portfolio/cash-debt-interest` (optional `margin_interest_rate` query = default rate for assets without a per-asset rate)
+- **Portfolio:** `GET /api/portfolio/current` (by_account includes `value`, `market_value`, `value_floor_5`, `value_ceiling_95`, `color`), `GET /api/portfolio/history` (items include `total_value`, `total_market_value`, by_account with `market_value`, `color`), `POST /api/portfolio/snapshot`, `GET /api/portfolio/estimated-mortgage-payments`, `GET /api/portfolio/cash-debt-interest` (optional `margin_interest_rate` query = default rate for assets without a per-asset rate)
 - **Prices:** `GET /api/prices` (optional query: `recalculate=SYM1,SYM2`), `POST /api/prices/recalculate`
 - **Price models:** `GET /api/price-models/symbols`, `GET /api/price-models/chart?symbol=AAPL` (historical price + fitted model and 5th/95th bands for charting)
-- **Forecast:** `POST /api/forecast`
+- **Forecast:** `POST /api/forecast` (optional `price_level`: `fair` | `optimistic` | `worst_case` for stocks/Bitcoin valuation)
 - **Symbols:** `GET /api/symbols/validate?symbol=AAPL` (validate ticker against Yahoo Finance)
 - **FX:** `GET /api/fx/rate?from=USD&to=EUR` (optional `date=YYYY-MM-DD` for historical rate; amount_from × rate = amount_to)
 - **Backup:** `GET /api/backup/export`, `POST /api/backup/import` (requires `confirm=true` for restore)
@@ -65,16 +65,16 @@ From repo root, run backend in one terminal and frontend in another (or use a si
 - **Cashflows:** income/expense with start/end and frequency; mortgage payments as negative cashflows in forecast
 - **Live prices** (yfinance) for stocks and BTC-USD; 24h change
 - **Price models:** regression-based fair value and 5th/95th percentile bands per symbol; current-price quantile within bands. Models: stocks (log price vs time), Bitcoin (log price vs log days since genesis), IBIT (BTC model + BTC/IBIT ratio). Optional force-refresh via `recalculate` query or `POST /api/prices/recalculate`.
-- **Portfolio:** current value (fair value and optional market total), value over time (snapshots), historical chart, estimated monthly mortgage payments per property with active mortgage
+- **Portfolio:** current value with fair, market, and optional floor/ceiling (5th/95th percentile) per account; value over time (snapshots store fair + market totals and per-account breakdown with market_value); historical chart; estimated monthly mortgage payments per property with active mortgage
 - **Forecast:** floor + VaR for stocks/Bitcoin, property appreciation and mortgage payoff, brokerage cash/margin (negative balance compounds at per-asset or default debt rate), cashflow bucket with CAGR. All values in **USD** (unit of account); frontend can display in another currency via its own conversion.
-- **Display currency:** Settings option to show all account values, prices, and totals in a chosen currency (e.g. EUR); backend remains USD; frontend uses FX rate for conversion.
-- **Price Models page:** chart of historical price vs date with fitted regression model and 5th/95th percentile bands; symbol selector from portfolio assets.
+- **Display currency:** Settings option to show all account values, prices, and totals in a chosen currency (e.g. EUR); backend remains USD; frontend uses FX rate and `Intl.NumberFormat` for proper currency symbols (e.g. €1,234.56).
+- **Prices tab:** live prices table plus historical model chart (select asset to view price vs date with fitted regression and 5th/95th bands); uses `GET /api/price-models/symbols` and `GET /api/price-models/chart?symbol=X`.
 - **Default debt interest rate:** in Settings; used for margin/cash debt in forecast when an asset does not specify its own rate.
 - **Backup/restore:** download .db, upload to restore (requires confirm)
 
 ## How the forecast model works
 
-The forecast projects your portfolio value year-by-year over a configurable horizon (default 10 years). You can set `horizon_years`, `margin_interest_rate` (default rate for margin/debt when an asset does not specify one), and `cashflow_bucket_cagr` when calling `POST /api/forecast`. The frontend uses the default debt interest rate from **Settings** when running a forecast.
+The forecast projects your portfolio value year-by-year over a configurable horizon (default 10 years). You can set `horizon_years`, `margin_interest_rate` (default rate for margin/debt when an asset does not specify one), `cashflow_bucket_cagr`, and `price_level` (`fair` | `optimistic` | `worst_case`) when calling `POST /api/forecast`. For stocks and Bitcoin, `optimistic` uses the 95th percentile price and `worst_case` uses the 5th percentile; `fair` uses the regression fair value. The frontend uses the default debt interest rate from **Settings** when running a forecast.
 
 ### Time steps
 
@@ -142,9 +142,27 @@ The forecast projects your portfolio value year-by-year over a configurable hori
   - **FX API**: `GET /api/fx/rate?from=&to=&date=` (optional date for historical rate). Used by DisplayCurrencyContext and for cashflow/portfolio display.
   - **Constants**: `frontend/src/constants/currencies.ts`; **Contexts**: `DisplayCurrencyContext`, `DefaultDebtInterestRateContext`.
 
-- **Price Models**
-  - New **Price models** nav page: historical price + fitted regression (fair value + 5th/95th bands) per symbol. APIs: `GET /api/price-models/symbols`, `GET /api/price-models/chart?symbol=X`.
+- **Prices (merged with Price models)**
+  - Single **Prices** tab: live prices table and, below it, historical model chart (select asset for price vs date with fitted regression and 5th/95th bands). APIs: `GET /api/price-models/symbols`, `GET /api/price-models/chart?symbol=X`.
   - Backend: `api/price_models.py`, `schemas/price_models.py`; extended `price_model_service` for chart data.
 
 - **Settings**
   - **Default debt interest rate** in Settings: annual rate used for margin/debt in forecast when an asset has no per-asset rate. Stored in frontend (localStorage) and passed to forecast and cash-debt-interest APIs when needed.
+
+## Changelog: Version 1.3
+
+- **Portfolio**
+  - **Current:** `by_account` includes `value_floor_5` and `value_ceiling_95` (5th/95th percentile when price models exist) in addition to fair and market value.
+  - **History & snapshots:** `GET /api/portfolio/history` returns `total_market_value` and per-account `market_value` and `color` when stored. Snapshots now persist and return `total_market_value`; DB migration adds `portfolio_snapshots.total_market_value` if missing.
+  - **Dashboard:** Shows market value as primary total and per-account when available; fair value shown as secondary when it differs. History chart and table use `total_market_value` / per-account `market_value` when present.
+
+- **Forecast**
+  - **Price level:** `POST /api/forecast` accepts `price_level`: `fair` (default), `optimistic` (95th percentile), or `worst_case` (5th percentile) for stocks and Bitcoin. Forecast page includes a selector for this.
+
+- **Prices**
+  - **Single tab:** Price Models nav item removed; all price and model chart functionality lives under the **Prices** tab.
+
+- **Display currency & formatting**
+  - Display currency amounts use `Intl.NumberFormat` with the selected currency for correct symbols (e.g. €1,234.56).
+  - **Cashflows:** Non-USD amounts in the table use `formatAmountInCurrency` for proper currency formatting.
+  - **Frontend utils:** `frontend/src/utils/currency.ts` — `formatAmountInCurrency(amount, currencyCode)` and `getCurrencySymbol(currencyCode)` for labels and per-currency display.

@@ -36,12 +36,16 @@ async def compute_portfolio_current(db: AsyncSession, prices: dict[str, dict] | 
     for acc in accounts:
         acc_value_fair = Decimal("0")
         acc_value_market = Decimal("0")
+        acc_value_floor_5 = Decimal("0")
+        acc_value_ceiling_95 = Decimal("0")
         for a in acc.assets:
             if acc.type == AccountType.cash and a.balance is not None:
                 balance_usd = amount_to_usd(float(a.balance), getattr(a, "currency", None) or acc.currency)
                 v = Decimal(str(balance_usd))
                 acc_value_fair += v
                 acc_value_market += v
+                acc_value_floor_5 += v
+                acc_value_ceiling_95 += v
                 assets_detail.append({
                     "asset_id": a.id,
                     "account_id": acc.id,
@@ -62,6 +66,8 @@ async def compute_portfolio_current(db: AsyncSession, prices: dict[str, dict] | 
                 v = Decimal(str(balance_usd))
                 acc_value_fair += v
                 acc_value_market += v
+                acc_value_floor_5 += v
+                acc_value_ceiling_95 += v
                 assets_detail.append({
                     "asset_id": a.id,
                     "account_id": acc.id,
@@ -89,8 +95,14 @@ async def compute_portfolio_current(db: AsyncSession, prices: dict[str, dict] | 
                     fair_p = market_p
                     v_fair = Decimal(str(shares_f)) * Decimal(str(market_p))
                 v_market = Decimal(str(shares_f)) * Decimal(str(market_p))
+                floor_p = model.get("floor_5") if model else None
+                ceiling_p = model.get("ceiling_95") if model else None
+                v_floor = (Decimal(str(shares_f)) * Decimal(str(floor_p))) if floor_p is not None else v_fair
+                v_ceiling = (Decimal(str(shares_f)) * Decimal(str(ceiling_p))) if ceiling_p is not None else v_fair
                 acc_value_fair += v_fair
                 acc_value_market += v_market
+                acc_value_floor_5 += v_floor
+                acc_value_ceiling_95 += v_ceiling
                 assets_detail.append({
                     "asset_id": a.id,
                     "account_id": acc.id,
@@ -116,8 +128,14 @@ async def compute_portfolio_current(db: AsyncSession, prices: dict[str, dict] | 
                     fair_p = market_p
                     v_fair = Decimal(str(btc_amount_f)) * Decimal(str(market_p))
                 v_market = Decimal(str(btc_amount_f)) * Decimal(str(market_p))
+                floor_p = model.get("floor_5") if model else None
+                ceiling_p = model.get("ceiling_95") if model else None
+                v_floor = (Decimal(str(btc_amount_f)) * Decimal(str(floor_p))) if floor_p is not None else v_fair
+                v_ceiling = (Decimal(str(btc_amount_f)) * Decimal(str(ceiling_p))) if ceiling_p is not None else v_fair
                 acc_value_fair += v_fair
                 acc_value_market += v_market
+                acc_value_floor_5 += v_floor
+                acc_value_ceiling_95 += v_ceiling
                 assets_detail.append({
                     "asset_id": a.id,
                     "account_id": acc.id,
@@ -139,6 +157,8 @@ async def compute_portfolio_current(db: AsyncSession, prices: dict[str, dict] | 
                 v = Decimal(str(pv_usd)) - Decimal(str(mb_usd))
                 acc_value_fair += v
                 acc_value_market += v
+                acc_value_floor_5 += v
+                acc_value_ceiling_95 += v
                 assets_detail.append({
                     "asset_id": a.id,
                     "account_id": acc.id,
@@ -159,6 +179,8 @@ async def compute_portfolio_current(db: AsyncSession, prices: dict[str, dict] | 
                 v = Decimal(str(pv_usd))
                 acc_value_fair += v
                 acc_value_market += v
+                acc_value_floor_5 += v
+                acc_value_ceiling_95 += v
                 assets_detail.append({
                     "asset_id": a.id,
                     "account_id": acc.id,
@@ -193,6 +215,8 @@ async def compute_portfolio_current(db: AsyncSession, prices: dict[str, dict] | 
             "account_name": acc.name,
             "value": float(acc_value_fair),
             "market_value": float(acc_value_market),
+            "value_floor_5": float(acc_value_floor_5),
+            "value_ceiling_95": float(acc_value_ceiling_95),
             "color": getattr(acc, "color", None),
         })
         total_fair += acc_value_fair

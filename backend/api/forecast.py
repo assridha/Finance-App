@@ -21,6 +21,7 @@ async def post_forecast(req: ForecastRequest, db: AsyncSession = Depends(get_db)
         horizon_years=req.horizon_years,
         margin_interest_rate=req.margin_interest_rate,
         cashflow_bucket_cagr=req.cashflow_bucket_cagr,
+        price_level=req.price_level,
     )
     out_series = []
     for s in series:

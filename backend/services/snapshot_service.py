@@ -44,17 +44,23 @@ async def rewrite_snapshots_after_account_delete(db: AsyncSession, account_id: i
 
 async def take_snapshot(db: AsyncSession) -> PortfolioSnapshot:
     """Compute current portfolio value and store as today's snapshot. Upsert by date."""
-    total_fair, _total_market, by_account, _ = await compute_portfolio_current(db)
+    total_fair, total_market, by_account, _ = await compute_portfolio_current(db)
     today = date.today()
     r = await db.execute(select(PortfolioSnapshot).where(PortfolioSnapshot.date == today))
     existing = r.scalar_one_or_none()
     if existing:
         existing.total_value = total_fair
+        existing.total_market_value = total_market
         existing.breakdown_json = json.dumps(by_account)
         await db.flush()
         await db.refresh(existing)
         return existing
-    snap = PortfolioSnapshot(date=today, total_value=total_fair, breakdown_json=json.dumps(by_account))
+    snap = PortfolioSnapshot(
+        date=today,
+        total_value=total_fair,
+        total_market_value=total_market,
+        breakdown_json=json.dumps(by_account),
+    )
     db.add(snap)
     await db.flush()
     await db.refresh(snap)

@@ -4,6 +4,7 @@ import { cashflowsApi, fxApi, portfolioApi, type Cashflow, type CashflowType, ty
 import { CURRENCY_OPTIONS } from "../constants/currencies";
 import { useDisplayCurrency } from "../contexts/DisplayCurrencyContext";
 import { useDefaultDebtInterestRate } from "../contexts/DefaultDebtInterestRateContext";
+import { formatAmountInCurrency } from "../utils/currency";
 
 function TrashIcon() {
   return (
@@ -236,7 +237,7 @@ export default function Cashflows() {
                     {cf.type === "income" ? "+" : "−"} {formatUsdForDisplay(monthlyEquivUsd(cf))}
                     {cf.currency !== "USD" && (
                       <span style={{ color: "#71717a", fontSize: "0.875rem", display: "block" }}>
-                        {cf.amount.toLocaleString()} {cf.currency} / {cf.frequency === "yearly" ? "yr" : cf.frequency === "weekly" ? "wk" : "mo"}
+                        {formatAmountInCurrency(cf.amount, cf.currency || "USD")} / {cf.frequency === "yearly" ? "yr" : cf.frequency === "weekly" ? "wk" : "mo"}
                       </span>
                     )}
                   </td>

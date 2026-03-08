@@ -1,3 +1,5 @@
+from typing import Literal
+
 from pydantic import BaseModel, ConfigDict
 
 
@@ -6,6 +8,7 @@ class ForecastRequest(BaseModel):
     # Global defaults (can be overridden per asset in future)
     margin_interest_rate: float = 0.08
     cashflow_bucket_cagr: float = 0.05
+    price_level: Literal["fair", "optimistic", "worst_case"] = "fair"
 
 
 class ForecastSeriesAccountItem(BaseModel):

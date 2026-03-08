@@ -56,7 +56,11 @@ export function DisplayCurrencyProvider({ children }: { children: React.ReactNod
       if (displayCurrency === "USD") {
         return converted.toLocaleString("en-US", { ...opts, style: "currency", currency: "USD" });
       }
-      return `${converted.toLocaleString("en-US", opts)} ${displayCurrency}`;
+      return new Intl.NumberFormat("en-US", {
+        style: "currency",
+        currency: displayCurrency,
+        ...opts,
+      }).format(converted);
     },
     [displayCurrency, rateUsdToDisplay]
   );
@@ -70,7 +74,11 @@ export function DisplayCurrencyProvider({ children }: { children: React.ReactNod
       if (displayCurrency === "USD") {
         return amount.toLocaleString("en-US", { ...opts, style: "currency", currency: "USD" });
       }
-      return `${amount.toLocaleString("en-US", opts)} ${displayCurrency}`;
+      return new Intl.NumberFormat("en-US", {
+        style: "currency",
+        currency: displayCurrency,
+        ...opts,
+      }).format(amount);
     },
     [displayCurrency]
   );

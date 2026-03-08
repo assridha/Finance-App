@@ -82,12 +82,21 @@ export const portfolioApi = {
       .get<{
         total_value: number;
         total_market_value?: number | null;
-        by_account: { account_id: number; account_name: string; value: number; market_value?: number | null; color?: string | null }[];
+        by_account: { account_id: number; account_name: string; value: number; market_value?: number | null; value_floor_5?: number | null; value_ceiling_95?: number | null; color?: string | null }[];
         assets: unknown[];
       }>("/portfolio/current")
       .then((r) => r.data),
   history: (from?: string, to?: string) =>
-    api.get<{ history: { date: string; total_value: number; by_account?: { account_id: number; account_name: string; value: number }[] | null }[] }>("/portfolio/history", { params: { from_date: from, to_date: to } }).then((r) => r.data),
+    api
+      .get<{
+        history: {
+          date: string;
+          total_value: number;
+          total_market_value?: number | null;
+          by_account?: { account_id: number; account_name: string; value: number; market_value?: number | null }[] | null;
+        }[];
+      }>("/portfolio/history", { params: { from_date: from, to_date: to } })
+      .then((r) => r.data),
   snapshot: () => api.post<{ date: string; total_value: number }>("/portfolio/snapshot").then((r) => r.data),
   estimatedMortgagePayments: () =>
     api.get<{ payments: { account_name: string; asset_id: number; monthly_payment: number; mortgage_balance: number }[] }>("/portfolio/estimated-mortgage-payments").then((r) => r.data),
@@ -148,7 +157,12 @@ export interface ForecastSeriesItem {
 }
 
 export const forecastApi = {
-  run: (params: { horizon_years?: number; margin_interest_rate?: number; cashflow_bucket_cagr?: number }) =>
+  run: (params: {
+    horizon_years?: number;
+    margin_interest_rate?: number;
+    cashflow_bucket_cagr?: number;
+    price_level?: "fair" | "optimistic" | "worst_case";
+  }) =>
     api
       .post<{
         series: ForecastSeriesItem[];

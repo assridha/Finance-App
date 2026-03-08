@@ -7,6 +7,8 @@ class AccountValueItem(BaseModel):
     account_name: str
     value: float  # fair value
     market_value: float | None = None  # market price–based value
+    value_floor_5: float | None = None  # 5th percentile (worst case) when model exists
+    value_ceiling_95: float | None = None  # 95th percentile (optimistic) when model exists
     color: str | None = None
 
 
@@ -21,6 +23,7 @@ class PortfolioCurrentResponse(BaseModel):
 class PortfolioHistoryItem(BaseModel):
     date: str  # YYYY-MM-DD
     total_value: float
+    total_market_value: float | None = None  # market price total when stored in snapshot
     by_account: list[AccountValueItem] | None = None  # per-account breakdown when stored in snapshot
 
 

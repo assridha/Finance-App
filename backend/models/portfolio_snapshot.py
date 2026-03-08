@@ -11,4 +11,5 @@ class PortfolioSnapshot(Base):
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     date: Mapped[date] = mapped_column(Date, unique=True, nullable=False)
     total_value: Mapped[float] = mapped_column(Numeric(20, 4), nullable=False)
+    total_market_value: Mapped[float | None] = mapped_column(Numeric(20, 4), nullable=True)
     breakdown_json: Mapped[str | None] = mapped_column(Text, nullable=True)  # optional per-account breakdown
