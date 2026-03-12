@@ -6,7 +6,7 @@ services:
       APP_PORT: "8080"
 
   web:
-    build: .
+    image: assridha/finance-asset-tracker:0.1.0
     user: "1000:1000"
     init: true
     restart: on-failure
