@@ -4,8 +4,7 @@ WORKDIR /app/frontend
 COPY frontend/package.json frontend/package-lock.json* ./
 RUN npm ci
 COPY frontend/ ./
-# Base path must match Umbrel app id (finance-asset-tracker)
-ENV VITE_BASE_PATH=/finance-asset-tracker
+ENV VITE_BASE_PATH=/
 RUN npm run build
 
 # Stage 2: backend + serve frontend
