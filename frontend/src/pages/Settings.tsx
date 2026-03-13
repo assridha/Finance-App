@@ -90,7 +90,15 @@ export default function Settings() {
       <div className="card">
         <h3 style={{ marginTop: 0 }}>Data backup</h3>
         <p style={{ color: "#71717a" }}>Download a copy of your database to recover from server disruptions.</p>
-        <a href={backupApi.exportUrl()} download style={{ display: "inline-block", marginBottom: "1rem" }}>
+        <a
+          href={
+            typeof window !== "undefined"
+              ? window.location.origin + backupApi.exportUrl()
+              : backupApi.exportUrl()
+          }
+          download
+          style={{ display: "inline-block", marginBottom: "1rem" }}
+        >
           <button type="button" className="primary">Download backup</button>
         </a>
       </div>
