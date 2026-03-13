@@ -197,28 +197,7 @@ export const priceModelsApi = {
 };
 
 export const backupApi = {
-  exportUrl: () => {
-    const basePath = import.meta.env.VITE_BASE_PATH || "";
-    const path = `${basePath}/api/backup/export`;
-    // #region agent log
-    if (typeof fetch !== "undefined") {
-      const origin = typeof window !== "undefined" ? window.location.origin : "";
-      fetch("http://127.0.0.1:7333/ingest/f830f5db-31e8-4404-bdca-2c0de31dee04", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "f5e582" },
-        body: JSON.stringify({
-          sessionId: "f5e582",
-          location: "api.ts:exportUrl",
-          message: "backup exportUrl",
-          data: { VITE_BASE_PATH: basePath, path, origin, absoluteUrl: origin ? origin + path : path },
-          timestamp: Date.now(),
-          hypothesisId: "H1-H2-H4",
-        }),
-      }).catch(() => {});
-    }
-    // #endregion
-    return path;
-  },
+  exportUrl: () => `${import.meta.env.VITE_BASE_PATH || ""}/api/backup/export`,
   import: (file: File, confirm: boolean) => {
     const form = new FormData();
     form.append("file", file);

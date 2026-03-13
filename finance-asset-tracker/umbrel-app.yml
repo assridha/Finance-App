@@ -2,7 +2,7 @@ manifestVersion: 1
 id: finance-asset-tracker
 category: finance
 name: Personal Finance Asset Tracker
-version: "0.1.2"
+version: "0.1.3"
 tagline: Track assets, cashflows, and forecast portfolio growth
 description: >-
   Track personal assets across cash, brokerage, Bitcoin, and property accounts.

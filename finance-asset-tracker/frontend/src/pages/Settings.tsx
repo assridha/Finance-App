@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { backupApi } from "../api";
 import axios from "axios";
@@ -54,24 +54,6 @@ export default function Settings() {
   const backupExportPath = backupApi.exportUrl();
   const backupDownloadHref =
     typeof window !== "undefined" ? window.location.origin + backupExportPath : backupExportPath;
-
-  // #region agent log
-  useEffect(() => {
-    if (typeof fetch === "undefined" || typeof window === "undefined") return;
-    fetch("http://127.0.0.1:7333/ingest/f830f5db-31e8-4404-bdca-2c0de31dee04", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "f5e582" },
-      body: JSON.stringify({
-        sessionId: "f5e582",
-        location: "Settings.tsx:backup link",
-        message: "backup link href",
-        data: { backupExportPath, backupDownloadHref, origin: window.location.origin },
-        timestamp: Date.now(),
-        hypothesisId: "H3-H5",
-      }),
-    }).catch(() => {});
-  }, [backupExportPath, backupDownloadHref]);
-  // #endregion
 
   return (
     <div>
