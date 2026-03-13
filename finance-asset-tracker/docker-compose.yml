@@ -6,7 +6,7 @@ services:
 
   web:
     container_name: finance-asset-tracker_web_1
-    image: asridhar90/finance-asset-tracker:0.1.2
+    image: asridhar90/finance-asset-tracker:latest
     user: "1000:1000"
     init: true
     restart: on-failure

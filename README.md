@@ -58,6 +58,44 @@ The app is built with base path `/finance-app` so it works when Umbrel serves it
 
 Update `umbrel-app.yml` with your `developer`, `repo`, and `support` URLs before publishing.
 
+### Release & update flow with CI
+
+This repo includes a GitHub Actions workflow that builds and publishes the Umbrel image to Docker Hub on **tagged releases**. Umbrel always pulls `asridhar90/finance-asset-tracker:latest`, so updating the app is:
+
+1. **One-time setup (GitHub)**
+   - In your GitHub repo, go to **Settings → Secrets and variables → Actions**.
+   - Add two repository secrets:
+     - `DOCKERHUB_USERNAME` = your Docker Hub username (e.g. `asridhar90`)
+     - `DOCKERHUB_TOKEN` = a Docker Hub access token (or password, but token is recommended)
+
+2. **Prepare a new release**
+   - Make your code changes (backend/frontend, Dockerfile, etc.) and commit them to `main`.
+   - In `finance-asset-tracker/umbrel-app.yml`, bump the app `version` field (e.g. from `"0.1.0"` to `"0.1.1"`). This is what Umbrel uses to show an **Update** is available.
+
+3. **Create and push a Git tag**
+   - From your local clone, after pushing `main`:
+     ```bash
+     # Create a tag on the latest commit on main
+     git checkout main
+     git pull origin main
+     git tag v0.1.1   # match the version in finance-asset-tracker/umbrel-app.yml
+     git push origin v0.1.1
+     ```
+   - The GitHub Actions workflow at `.github/workflows/docker-build.yml` is triggered on tags matching `v*`.
+
+4. **What the workflow does**
+   - Builds the image from `finance-asset-tracker/Dockerfile` using Docker Buildx for **linux/amd64** and **linux/arm64**.
+   - Pushes tags to Docker Hub:
+     - `asridhar90/finance-asset-tracker:latest`
+     - `asridhar90/finance-asset-tracker:v0.1.1` (the Git tag)
+
+5. **Update on Umbrel**
+   - On your Umbrel dashboard, open the **Finance** community store and find **Personal Finance Asset Tracker**.
+   - Umbrel detects the new `version` from `finance-asset-tracker/umbrel-app.yml` and shows an **Update** button.
+   - Click **Update**; Umbrel pulls the new `latest` image (`asridhar90/finance-asset-tracker:latest`) defined in `finance-asset-tracker/docker-compose.yml` and restarts the app with your changes.
+
+If you ever need to roll back, you can retag an older commit (e.g. `git tag -f v0.1.1 <old-commit>` and `git push --force origin v0.1.1`) and re-run the workflow, or point the compose file at a specific versioned tag instead of `latest`.
+
 ### I don't see the app at all
 
 - **Add the repo as a Community App Store** (not “Install from URL”). In the Umbrel dashboard go to **App Store**, then find the option to **add a store** or **add community store** (on UmbrelOS 1.5 this may be under **Settings → App Store** or a “+” / “Add store” in the App Store view). Paste the **repository URL**:
