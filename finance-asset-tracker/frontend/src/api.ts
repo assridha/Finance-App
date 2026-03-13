@@ -1,7 +1,9 @@
 import axios from "axios";
 
 const api = axios.create({
-  baseURL: `${import.meta.env.VITE_BASE_PATH || ""}/api`,
+  // For Umbrel we always talk to the same host/port as the frontend.
+  // Use an absolute path so requests go to http(s)://<host>/api/...
+  baseURL: "/api",
   headers: { "Content-Type": "application/json" },
 });
 
