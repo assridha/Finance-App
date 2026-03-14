@@ -2,7 +2,7 @@ manifestVersion: 1
 id: finance-asset-tracker
 category: finance
 name: Personal Finance Asset Tracker
-version: "0.1.3"
+version: "0.1.4"
 tagline: Track assets, cashflows, and forecast portfolio growth
 description: >-
   Track personal assets across cash, brokerage, Bitcoin, and property accounts.
@@ -10,7 +10,7 @@ description: >-
   via yfinance. Forecast engine uses floor + VaR models, property appreciation
   and mortgage, margin debt interest, and a cashflow bucket.
 icon: "https://raw.githubusercontent.com/assridha/Finance-App/main/finance-app-icon.jpg"
-releaseNotes: "Initial release. Track assets, cashflows, portfolio, and forecast with floor + VaR."
+releaseNotes: "Improved UI especially on mobile devices."
 developer: ""
 website: ""
 dependencies: []

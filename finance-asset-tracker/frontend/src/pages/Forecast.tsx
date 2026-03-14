@@ -50,6 +50,14 @@ const PRICE_LEVEL_LABEL: Record<PriceLevel, string> = {
   worst_case: "worst case",
 };
 
+const formatYAxisCompact = (value: number): string => {
+  const abs = Math.abs(value);
+  if (abs >= 1_000_000_000) return `${(value / 1_000_000_000).toFixed(1)}B`;
+  if (abs >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M`;
+  if (abs >= 1_000) return `${(value / 1_000).toFixed(1)}k`;
+  return value.toFixed(0);
+};
+
 export default function Forecast() {
   const [horizonYears, setHorizonYears] = useState(10);
   const [cashflowCagr, setCashflowCagr] = useState(0.05);
@@ -221,8 +229,14 @@ export default function Forecast() {
     return Math.max(52, Math.min(88, estimatedPx));
   };
 
-  const barYAxisWidth = yAxisWidth(barChartMaxY);
-  const areaYAxisWidth = yAxisWidth(areaChartMaxY);
+  /** Compact Y-axis labels (k/M/B) need less width than full currency format */
+  const compactYAxisWidth = (maxValue: number) => {
+    const formatted = formatYAxisCompact(maxValue);
+    return Math.max(40, Math.min(52, formatted.length * 8 + 10));
+  };
+
+  const barYAxisWidth = compactYAxisWidth(barChartMaxY);
+  const areaYAxisWidth = compactYAxisWidth(areaChartMaxY);
 
   return (
     <div style={{ width: "100%", minWidth: 0, maxWidth: "100%", overflow: "hidden" }}>
@@ -270,22 +284,29 @@ export default function Forecast() {
       </div>
 
       <div className="card" style={{ maxWidth: "100%", overflow: "hidden" }}>
-        <h2 style={{ marginTop: 0, marginBottom: "1rem", fontSize: "1.125rem" }}>Present-day net asset value (by account)</h2>
+        <h2 style={{ marginTop: 0, marginBottom: "0.75rem", fontSize: "1.125rem" }}>Present-day net asset value</h2>
         {accountNames.length === 0 ? (
           <div style={{ height: 320, display: "flex", alignItems: "center", justifyContent: "center" }}>
             <p style={{ color: "#71717a", margin: 0 }}>No accounts with assets. Add accounts and assets to see breakdown.</p>
           </div>
         ) : (
           <>
-            <p style={{ color: "#71717a", fontSize: "0.875rem", marginBottom: "0.75rem" }}>
+            <p style={{ color: "#71717a", fontSize: "0.875rem", marginBottom: "0.5rem" }}>
               Click a legend label to include or exclude that account from the totals.
             </p>
             <div style={{ height: 320, minHeight: 320 }}>
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={presentDayBarData} margin={{ top: 8, right: 8, left: barYAxisWidth, bottom: 32 }}>
+                <BarChart data={presentDayBarData} margin={{ top: 8, right: 8, left: 8, bottom: 56 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#27272a" />
-                  <XAxis dataKey="name" stroke="#71717a" interval={0} />
-                  <YAxis stroke="#71717a" width={barYAxisWidth} tickFormatter={(v) => formatDisplayAmount(Number(v))} />
+                  <XAxis
+                    dataKey="name"
+                    stroke="#71717a"
+                    interval={0}
+                    tickFormatter={(v) => ({ "Market value": "Market", "Fair value": "Fair", "Worst case": "Worst", "Optimistic": "Optim." }[v] ?? v)}
+                    height={40}
+                    tick={{ fontSize: 12 }}
+                  />
+                  <YAxis stroke="#71717a" width={barYAxisWidth} tickFormatter={(v) => formatYAxisCompact(Number(v))} />
                   <Tooltip
                     formatter={(v: number | undefined, name?: string) =>
                       name != null && !includedAccounts.has(name) ? null : [
@@ -298,7 +319,7 @@ export default function Forecast() {
                   />
                   <Legend
                     content={() => (
-                      <div style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem", justifyContent: "center", marginTop: "0.5rem" }}>
+                      <div className="chart-legend">
                         {accountNames.map((name) => {
                           const included = includedAccounts.has(name);
                           const color = barChartColorFor(name);
@@ -307,26 +328,16 @@ export default function Forecast() {
                               key={name}
                               type="button"
                               onClick={() => toggleAccount(name)}
+                              className="chart-legend-btn"
                               style={{
-                                display: "inline-flex",
-                                alignItems: "center",
-                                gap: "0.35rem",
-                                padding: "0.25rem 0.5rem",
-                                fontSize: "0.8125rem",
-                                border: "1px solid #52525b",
-                                borderRadius: 4,
                                 background: included ? color : "transparent",
                                 color: included ? "#0f0f12" : "#71717a",
-                                cursor: "pointer",
                                 opacity: included ? 1 : 0.55,
                               }}
                               title={included ? "Click to exclude from chart" : "Click to include in chart"}
                             >
                               <span
                                 style={{
-                                  width: 10,
-                                  height: 10,
-                                  borderRadius: 2,
                                   background: included ? "currentColor" : "transparent",
                                   border: `1px solid ${color}`,
                                 }}
@@ -397,11 +408,11 @@ export default function Forecast() {
                     });
                     return point;
                   })}
-                  margin={{ top: 8, right: 8, left: areaYAxisWidth, bottom: 8 }}
+                  margin={{ top: 8, right: 8, left: 16, bottom: 8 }}
                 >
                   <CartesianGrid strokeDasharray="3 3" stroke="#27272a" />
                   <XAxis dataKey="date" stroke="#71717a" />
-                  <YAxis stroke="#71717a" width={areaYAxisWidth} tickFormatter={(v) => formatDisplayAmount(Number(v))} />
+                  <YAxis stroke="#71717a" width={areaYAxisWidth} tickFormatter={(v) => formatYAxisCompact(Number(v))} />
                   <Tooltip
                     content={({ payload, label, active }) => {
                       if (!active || !payload?.length) return null;
@@ -436,7 +447,7 @@ export default function Forecast() {
                   />
                   <Legend
                     content={() => (
-                      <div style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem", justifyContent: "center", marginTop: "0.5rem" }}>
+                      <div className="chart-legend">
                         {forecastSeriesNames.map((name) => {
                           const included = includedForecastSeries.has(name);
                           const color = forecastColorFor(name);
@@ -445,26 +456,16 @@ export default function Forecast() {
                               key={name}
                               type="button"
                               onClick={() => toggleForecastSeries(name)}
+                              className="chart-legend-btn"
                               style={{
-                                display: "inline-flex",
-                                alignItems: "center",
-                                gap: "0.35rem",
-                                padding: "0.25rem 0.5rem",
-                                fontSize: "0.8125rem",
-                                border: "1px solid #52525b",
-                                borderRadius: 4,
                                 background: included ? color : "transparent",
                                 color: included ? "#0f0f12" : "#71717a",
-                                cursor: "pointer",
                                 opacity: included ? 1 : 0.55,
                               }}
                               title={included ? "Click to exclude from chart" : "Click to include in chart"}
                             >
                               <span
                                 style={{
-                                  width: 10,
-                                  height: 10,
-                                  borderRadius: 2,
                                   background: included ? "currentColor" : "transparent",
                                   border: `1px solid ${color}`,
                                 }}
@@ -523,7 +524,7 @@ export default function Forecast() {
       {breakdown.length > 0 && (
         <div className="card">
           <h2 style={{ marginTop: 0, marginBottom: "1rem", fontSize: "1.125rem" }}>Calculations by asset and year</h2>
-          <div style={{ overflowX: "auto" }}>
+          <div className="table-wrapper">
             <table>
               <thead>
                 <tr>

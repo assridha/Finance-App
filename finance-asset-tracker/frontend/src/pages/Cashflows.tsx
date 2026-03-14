@@ -5,16 +5,7 @@ import { CURRENCY_OPTIONS } from "../constants/currencies";
 import { useDisplayCurrency } from "../contexts/DisplayCurrencyContext";
 import { useDefaultDebtInterestRate } from "../contexts/DefaultDebtInterestRateContext";
 import { formatAmountInCurrency } from "../utils/currency";
-
-function TrashIcon() {
-  return (
-    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-      <path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2" />
-      <line x1="10" y1="11" x2="10" y2="17" />
-      <line x1="14" y1="11" x2="14" y2="17" />
-    </svg>
-  );
-}
+import { TrashIcon } from "../components/Icons";
 
 function PencilIcon() {
   return (
@@ -123,6 +114,7 @@ export default function Cashflows() {
         <p style={{ color: "#71717a", fontSize: "0.875rem", marginBottom: "1rem" }}>
           All income and expense cashflows converted to monthly equivalent. Mortgage and debt financing are in USD.
         </p>
+        <div className="table-wrapper">
         <table style={{ width: "100%", maxWidth: 420 }}>
           <tbody>
             <tr>
@@ -149,6 +141,7 @@ export default function Cashflows() {
             </tr>
           </tbody>
         </table>
+        </div>
       </div>
       {cashDebtInterest && (
         <div className="card" style={{ marginBottom: "1rem", maxWidth: "100%", overflow: "hidden" }}>
@@ -160,7 +153,7 @@ export default function Cashflows() {
             Total: {formatUsdForDisplay(cashDebtInterest.total_monthly_interest_usd)} / month
           </p>
           {cashDebtInterest.by_account.length > 0 ? (
-            <div style={{ overflowX: "auto" }}>
+            <div className="table-wrapper">
               <table style={{ minWidth: 280 }}>
                 <thead>
                   <tr>
@@ -191,7 +184,7 @@ export default function Cashflows() {
           <p style={{ color: "#71717a", fontSize: "0.875rem", marginBottom: "1rem" }}>
             Properties with an active mortgage. These are included as negative cashflows in the forecast.
           </p>
-          <div style={{ overflowX: "auto" }}>
+          <div className="table-wrapper">
             <table style={{ minWidth: 280 }}>
               <thead>
                 <tr>
@@ -215,7 +208,7 @@ export default function Cashflows() {
       )}
       <div className="card" style={{ maxWidth: "100%", overflow: "hidden" }}>
         <h3 style={{ marginTop: 0, marginBottom: "0.75rem" }}>Income and expenses</h3>
-        <div style={{ overflowX: "auto" }}>
+        <div className="table-wrapper">
           <table style={{ minWidth: 320 }}>
             <thead>
               <tr>
@@ -257,9 +250,10 @@ export default function Cashflows() {
                       type="button"
                       onClick={() => remove.mutate(cf.id)}
                       title="Delete"
-                      style={{ color: "#f87171", padding: "0.35rem", minWidth: 32, minHeight: 32 }}
+                      aria-label="Delete"
+                      style={{ color: "#f87171", padding: "0.35rem", minWidth: 32, minHeight: 32, display: "inline-flex", alignItems: "center", justifyContent: "center" }}
                     >
-                      <TrashIcon />
+                      <TrashIcon size={18} />
                     </button>
                   </td>
                 </tr>

@@ -2,6 +2,8 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { accountsApi, assetsApi, symbolsApi, type Account, type AccountType, type Asset } from "../api";
 import { CURRENCY_OPTIONS } from "../constants/currencies";
+import { TrashIcon, PencilIcon, CheckIcon, CloseIcon } from "../components/Icons";
+import { useDefaultDebtInterestRate } from "../contexts/DefaultDebtInterestRateContext";
 
 const ACCOUNT_TYPE_LABELS: Record<AccountType, { emoji: string; label: string }> = {
   cash: { emoji: "💵", label: "cash" },
@@ -30,6 +32,7 @@ export default function Accounts() {
   const [editingAccountId, setEditingAccountId] = useState<number | null>(null);
   const [deleteConfirmAccountId, setDeleteConfirmAccountId] = useState<number | null>(null);
 
+  const { defaultDebtInterestRate } = useDefaultDebtInterestRate();
   const { data: accounts = [], error: errorAccounts } = useQuery({ queryKey: ["accounts"], queryFn: accountsApi.list });
   const { data: assets = [], error: errorAssets } = useQuery({
     queryKey: ["assets", selectedAccountId],
@@ -88,9 +91,9 @@ export default function Accounts() {
       {errorAccounts && <div className="card" style={{ color: "#f87171", marginBottom: "1rem" }}>{(errorAccounts as Error).message}</div>}
       <div style={{ display: "flex", gap: "1rem", flexWrap: "wrap" }}>
         <div className="card" style={{ flex: "1 1 280px" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
+          <div className="card-row-responsive" style={{ marginBottom: "1rem" }}>
             <h3 style={{ margin: 0 }}>Accounts</h3>
-            <button className="primary" onClick={() => setShowAddAccount(true)}>Add account</button>
+            <button className="primary card-row-responsive__action" onClick={() => setShowAddAccount(true)}>Add account</button>
           </div>
           {showAddAccount && (
             <AddAccountForm
@@ -146,9 +149,9 @@ export default function Accounts() {
             <div style={{ color: "#f87171" }}>{(errorAssets as Error).message}</div>
           ) : (
             <>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem", flexWrap: "wrap", gap: 8 }}>
+              <div className="card-row-responsive" style={{ marginBottom: "1rem" }}>
                 <h3 style={{ margin: 0 }}>Assets in {selectedAccount.name}</h3>
-                <div style={{ display: "flex", gap: 8 }}>
+                <div className="card-row-responsive__action" style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem" }}>
                   <button onClick={() => setEditingAccountId(selectedAccount.id)}>Edit account</button>
                   <button
                     style={{ color: "#f87171" }}
@@ -172,16 +175,15 @@ export default function Accounts() {
                     >
                       {deleteAccount.isPending ? "Deleting…" : "Delete"}
                     </button>
-                    <button onClick={() => setDeleteConfirmAccountId(null)}>Cancel</button>
+                    <button type="button" className="btn-icon" onClick={() => setDeleteConfirmAccountId(null)} title="Cancel" aria-label="Cancel"><CloseIcon size={18} /></button>
                   </div>
                 </div>
               )}
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
-                <span />
+              <div className={`card-row-responsive ${selectedAccount.type !== "property" || assets.length < 1 ? "card-row-responsive--start" : ""}`} style={{ marginBottom: "1rem" }}>
                 {selectedAccount.type === "property" && assets.length >= 1 ? (
                   <span style={{ color: "#71717a", fontSize: "0.875rem" }}>This account has one property. Add another account for another property.</span>
                 ) : (
-                  <button className="primary" onClick={() => setShowAddAsset(true)}>Add asset</button>
+                  <button className="primary card-row-responsive__action" onClick={() => setShowAddAsset(true)}>Add asset</button>
                 )}
               </div>
               {showAddAsset && selectedAccount && (
@@ -191,25 +193,28 @@ export default function Accounts() {
                   onCancel={() => setShowAddAsset(false)}
                 />
               )}
-              <table>
-                <thead>
-                  <tr>
-                    <th>Value / Qty</th>
-                    <th></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {assets.map((a) => (
-                    <AssetRow
-                      key={a.id}
-                      asset={a}
-                      accountType={selectedAccount.type}
-                      onUpdate={(data) => updateAsset.mutate({ id: a.id, data })}
-                      onDelete={() => deleteAsset.mutate(a.id)}
-                    />
-                  ))}
-                </tbody>
-              </table>
+              <div className="table-wrapper">
+                <table className="assets-table">
+                  <thead>
+                    <tr>
+                      <th>Value / Qty</th>
+                      <th></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {assets.map((a) => (
+                      <AssetRow
+                        key={a.id}
+                        asset={a}
+                        accountType={selectedAccount.type}
+                        defaultDebtInterestRate={defaultDebtInterestRate}
+                        onUpdate={(data) => updateAsset.mutate({ id: a.id, data })}
+                        onDelete={() => deleteAsset.mutate(a.id)}
+                      />
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </>
           )}
         </div>
@@ -284,8 +289,8 @@ function AddAccountForm({
         </button>
       </div>
       <div style={{ marginTop: "1rem", display: "flex", gap: "0.5rem" }}>
-        <button className="primary" onClick={() => onSave({ name, type, currency: "USD", color })}>Save</button>
-        <button onClick={onCancel}>Cancel</button>
+        <button type="button" className="primary btn-icon" onClick={() => onSave({ name, type, currency: "USD", color })} title="Save" aria-label="Save"><CheckIcon size={18} /></button>
+        <button type="button" className="btn-icon" onClick={onCancel} title="Cancel" aria-label="Cancel"><CloseIcon size={18} /></button>
       </div>
     </div>
   );
@@ -352,10 +357,8 @@ function EditAccountForm({
         </button>
       </div>
       <div style={{ marginTop: "1rem", display: "flex", gap: "0.5rem" }}>
-        <button className="primary" onClick={() => onSave({ name, color })}>
-          Save
-        </button>
-        <button onClick={onCancel}>Cancel</button>
+        <button type="button" className="primary btn-icon" onClick={() => onSave({ name, color })} title="Save" aria-label="Save"><CheckIcon size={18} /></button>
+        <button type="button" className="btn-icon" onClick={onCancel} title="Cancel" aria-label="Cancel"><CloseIcon size={18} /></button>
       </div>
     </div>
   );
@@ -398,8 +401,8 @@ function AddAssetForm({
           ))}
         </select>
         <div style={{ marginTop: "1rem", display: "flex", gap: "0.5rem" }}>
-          <button className="primary" onClick={() => onSave({ balance: parseFloat(balance) || 0, currency })}>Save</button>
-          <button onClick={onCancel}>Cancel</button>
+          <button type="button" className="primary btn-icon" onClick={() => onSave({ balance: parseFloat(balance) || 0, currency })} title="Save" aria-label="Save"><CheckIcon size={18} /></button>
+          <button type="button" className="btn-icon" onClick={onCancel} title="Cancel" aria-label="Cancel"><CloseIcon size={18} /></button>
         </div>
       </div>
     );
@@ -450,8 +453,8 @@ function AddAssetForm({
             <label>Shares</label>
             <input type="number" value={shares} onChange={(e) => setShares(e.target.value)} />
             <div style={{ marginTop: "1rem", display: "flex", gap: "0.5rem" }}>
-              <button className="primary" onClick={handleBrokeragePositionSave} disabled={validating}>{validating ? "Checking…" : "Save"}</button>
-              <button onClick={onCancel}>Cancel</button>
+              <button type="button" className="primary btn-icon" onClick={handleBrokeragePositionSave} disabled={validating} title={validating ? "Checking…" : "Save"} aria-label={validating ? "Checking…" : "Save"}><CheckIcon size={18} /></button>
+              <button type="button" className="btn-icon" onClick={onCancel} title="Cancel" aria-label="Cancel"><CloseIcon size={18} /></button>
             </div>
           </>
         ) : (
@@ -468,17 +471,20 @@ function AddAssetForm({
             <input type="number" step="0.01" min="0" value={debt_interest_rate} onChange={(e) => setDebtInterestRate(e.target.value)} placeholder="optional" />
             <div style={{ marginTop: "1rem", display: "flex", gap: "0.5rem" }}>
               <button
-                className="primary"
+                type="button"
+                className="primary btn-icon"
                 onClick={() => {
                   const payload: Partial<Asset> = { balance: parseFloat(balance) || 0, currency };
                   const rateVal = debt_interest_rate.trim() ? parseFloat(debt_interest_rate) : undefined;
                   if (rateVal != null && Number.isFinite(rateVal) && rateVal >= 0) payload.debt_interest_rate = rateVal;
                   onSave(payload);
                 }}
+                title="Save"
+                aria-label="Save"
               >
-                Save
+                <CheckIcon size={18} />
               </button>
-              <button onClick={onCancel}>Cancel</button>
+              <button type="button" className="btn-icon" onClick={onCancel} title="Cancel" aria-label="Cancel"><CloseIcon size={18} /></button>
             </div>
           </>
         )}
@@ -491,8 +497,8 @@ function AddAssetForm({
         <label>BTC amount</label>
         <input type="number" value={btc_amount} onChange={(e) => setBtcAmount(e.target.value)} step="any" />
         <div style={{ marginTop: "1rem", display: "flex", gap: "0.5rem" }}>
-          <button className="primary" onClick={() => onSave({ btc_amount: parseFloat(btc_amount) || 0 })}>Save</button>
-          <button onClick={onCancel}>Cancel</button>
+          <button type="button" className="primary btn-icon" onClick={() => onSave({ btc_amount: parseFloat(btc_amount) || 0 })} title="Save" aria-label="Save"><CheckIcon size={18} /></button>
+          <button type="button" className="btn-icon" onClick={onCancel} title="Cancel" aria-label="Cancel"><CloseIcon size={18} /></button>
         </div>
       </div>
     );
@@ -517,7 +523,10 @@ function AddAssetForm({
       <input type="number" value={mortgage_term_months} onChange={(e) => setMortgageTerm(e.target.value)} placeholder="300" />
       <div style={{ marginTop: "1rem", display: "flex", gap: "0.5rem" }}>
         <button
-          className="primary"
+          type="button"
+          className="primary btn-icon"
+          title="Save"
+          aria-label="Save"
           onClick={() =>
             onSave({
               property_value: parseFloat(property_value) || 0,
@@ -530,9 +539,9 @@ function AddAssetForm({
             })
           }
         >
-          Save
+          <CheckIcon size={18} />
         </button>
-        <button onClick={onCancel}>Cancel</button>
+        <button type="button" className="btn-icon" onClick={onCancel} title="Cancel" aria-label="Cancel"><CloseIcon size={18} /></button>
       </div>
     </div>
   );
@@ -574,7 +583,10 @@ function EditPropertyForm({
       <input type="number" value={mortgage_term_months} onChange={(e) => setMortgageTerm(e.target.value)} placeholder="300" />
       <div style={{ marginTop: "1rem", display: "flex", gap: "0.5rem" }}>
         <button
-          className="primary"
+          type="button"
+          className="primary btn-icon"
+          title="Save"
+          aria-label="Save"
           onClick={() => {
             onSave({
               property_value: parseFloat(property_value) || 0,
@@ -587,9 +599,9 @@ function EditPropertyForm({
             });
           }}
         >
-          Save
+          <CheckIcon size={18} />
         </button>
-        <button onClick={onCancel}>Cancel</button>
+        <button type="button" className="btn-icon" onClick={onCancel} title="Cancel" aria-label="Cancel"><CloseIcon size={18} /></button>
       </div>
     </div>
   );
@@ -598,11 +610,13 @@ function EditPropertyForm({
 function AssetRow({
   asset,
   accountType,
+  defaultDebtInterestRate,
   onUpdate,
   onDelete,
 }: {
   asset: Asset;
   accountType: AccountType;
+  defaultDebtInterestRate: number;
   onUpdate: (data: Partial<Asset>) => void;
   onDelete: () => void;
 }) {
@@ -610,22 +624,30 @@ function AssetRow({
   const [val, setVal] = useState("");
 
   const isBrokerageCash = accountType === "brokerage" && asset.balance != null && !asset.symbol;
+  const marginDebtRate = asset.debt_interest_rate ?? defaultDebtInterestRate;
   const marginDebtLabel =
     Number(asset.balance) < 0
       ? asset.debt_interest_rate != null
         ? `Margin debt @ ${(Number(asset.debt_interest_rate) * 100).toFixed(0)}%`
-        : "Margin debt"
+        : `Margin debt @ ${(marginDebtRate * 100).toFixed(0)}% (default)`
       : "Cash";
   const display =
     accountType === "cash"
       ? `${asset.balance} ${asset.currency ?? "USD"}`
       : accountType === "brokerage"
       ? isBrokerageCash
-        ? `${asset.balance} ${asset.currency ?? "USD"} (${marginDebtLabel})`
-        : `${asset.symbol} × ${asset.shares}`
+        ? null
+        : `${asset.shares} ${asset.symbol}`
       : accountType === "bitcoin"
       ? `${asset.btc_amount} BTC`
       : null;
+  const brokerageCashDisplay =
+    isBrokerageCash ? (
+      <div className="asset-value-cell">
+        <div>{asset.balance} {asset.currency ?? "USD"}</div>
+        <div className="asset-value-cell__secondary">{marginDebtLabel}</div>
+      </div>
+    ) : null;
   const propertyCurrencyLabel = (asset.currency ?? "USD").trim() || "USD";
   const propertyDisplay =
     accountType === "property" ? (
@@ -672,64 +694,73 @@ function AssetRow({
     return (
       <tr>
         <td colSpan={2}>
-          <input
-            type="number"
-            value={val}
-            onChange={(e) => setVal(e.target.value)}
-            autoFocus={!showCashEdit}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") commitEdit();
-            }}
-          />
-          {showCashEdit && (
-            <select
-              value={editCurrency}
-              onChange={(e) => setEditCurrency(e.target.value)}
-              style={{ marginLeft: 8 }}
-            >
-              {CURRENCY_OPTIONS.map((c) => (
-                <option key={c.code} value={c.code}>{c.label}</option>
-              ))}
-            </select>
-          )}
-          {isBrokerageCash && (
-            <>
-              <label style={{ marginLeft: 8 }}>Debt rate (annual):</label>
-              <input
-                type="number"
-                step="0.01"
-                min="0"
-                value={editDebtRate}
-                onChange={(e) => setEditDebtRate(e.target.value)}
-                placeholder="optional"
-                style={{ marginLeft: 4, width: 80 }}
-              />
-            </>
-          )}
-          <button className="primary" onClick={commitEdit}>Save</button>
-          <button onClick={() => setEditing(false)}>Cancel</button>
+          <div className="asset-edit-row">
+            <input
+              type="number"
+              value={val}
+              onChange={(e) => setVal(e.target.value)}
+              autoFocus={!showCashEdit}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") commitEdit();
+              }}
+            />
+            {showCashEdit && (
+              <select
+                value={editCurrency}
+                onChange={(e) => setEditCurrency(e.target.value)}
+              >
+                {CURRENCY_OPTIONS.map((c) => (
+                  <option key={c.code} value={c.code}>{c.label}</option>
+                ))}
+              </select>
+            )}
+            {isBrokerageCash && (
+              <>
+                <label className="asset-edit-row__label">Debt rate (annual):</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={editDebtRate}
+                  onChange={(e) => setEditDebtRate(e.target.value)}
+                  placeholder="optional"
+                  style={{ width: 80 }}
+                />
+              </>
+            )}
+            <button type="button" className="primary btn-icon" onClick={commitEdit} title="Save" aria-label="Save"><CheckIcon size={18} /></button>
+            <button type="button" className="btn-icon" onClick={() => setEditing(false)} title="Cancel" aria-label="Cancel"><CloseIcon size={18} /></button>
+          </div>
         </td>
       </tr>
     );
   }
   return (
     <tr>
-      <td>{accountType === "property" ? propertyDisplay : display}</td>
+      <td>{accountType === "property" ? propertyDisplay : brokerageCashDisplay ?? display}</td>
       <td>
-        <button
-          onClick={() => {
-            if (accountType === "property") setEditing(true);
-            else {
-              setVal(String(asset.shares ?? asset.balance ?? asset.btc_amount ?? asset.property_value ?? ""));
-              setEditCurrency(asset.currency ?? "USD");
-              setEditDebtRate(asset.debt_interest_rate != null ? String(asset.debt_interest_rate) : "");
-              setEditing(true);
-            }
-          }}
-        >
-          Edit
-        </button>
-        <button onClick={onDelete} style={{ marginLeft: 4, color: "#f87171" }}>Delete</button>
+        <div className="asset-row-actions">
+          <button
+            type="button"
+            className="btn-icon"
+            title="Edit"
+            aria-label="Edit"
+            onClick={() => {
+              if (accountType === "property") setEditing(true);
+              else {
+                setVal(String(asset.shares ?? asset.balance ?? asset.btc_amount ?? asset.property_value ?? ""));
+                setEditCurrency(asset.currency ?? "USD");
+                setEditDebtRate(asset.debt_interest_rate != null ? String(asset.debt_interest_rate) : "");
+                setEditing(true);
+              }
+            }}
+          >
+            <PencilIcon size={18} />
+          </button>
+          <button type="button" onClick={onDelete} title="Delete" className="btn-icon" style={{ color: "#f87171" }} aria-label="Delete">
+            <TrashIcon size={18} />
+          </button>
+        </div>
       </td>
     </tr>
   );

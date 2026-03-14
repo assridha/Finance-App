@@ -79,7 +79,7 @@ export default function Prices() {
         {entries.length === 0 ? (
           <p style={{ color: "#71717a" }}>Add brokerage or Bitcoin assets to see prices.</p>
         ) : (
-          <div style={{ overflowX: "auto" }}>
+          <div className="table-wrapper">
             <table>
               <thead>
                 <tr>
@@ -181,7 +181,7 @@ export default function Prices() {
           <ResponsiveContainer width="100%" height={400}>
             <ComposedChart
               data={chartData.data.map((p) => ({ ...p, ciBand: p.ceiling_95 - p.floor_5 }))}
-              margin={{ top: 8, right: 8, left: 56, bottom: 8 }}
+              margin={{ top: 8, right: 8, left: 8, bottom: 8 }}
             >
               <CartesianGrid strokeDasharray="3 3" stroke="#27272a" />
               <XAxis
@@ -192,6 +192,7 @@ export default function Prices() {
               />
               <YAxis
                 stroke="#a1a1aa"
+                width={40}
                 fontSize={12}
                 tickFormatter={(v) => (v >= 1e6 ? `${(v / 1e6).toFixed(1)}M` : v >= 1e3 ? `${(v / 1e3).toFixed(1)}k` : String(v))}
                 domain={["auto", "auto"]}

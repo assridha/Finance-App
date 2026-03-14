@@ -14,6 +14,14 @@ const ACCOUNT_TYPE_EMOJI: Record<AccountType, string> = {
 
 const ACCOUNT_COLOR_FALLBACKS = ["#3b82f6", "#22c55e", "#f59e0b", "#8b5cf6", "#ec4899", "#06b6d4"];
 
+const formatYAxisCompact = (value: number): string => {
+  const abs = Math.abs(value);
+  if (abs >= 1_000_000_000) return `${(value / 1_000_000_000).toFixed(1)}B`;
+  if (abs >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M`;
+  if (abs >= 1_000) return `${(value / 1_000).toFixed(1)}k`;
+  return value.toFixed(0);
+};
+
 export default function Dashboard() {
   const qc = useQueryClient();
   const { formatUsdForDisplay, formatDisplayAmount, displayCurrency } = useDisplayCurrency();
@@ -133,8 +141,8 @@ export default function Dashboard() {
   return (
     <div>
       <h1>Dashboard</h1>
-      <div className="card" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <div>
+      <div className="card card-row-responsive">
+        <div className="card-row-responsive__content">
           <div style={{ color: "#71717a", fontSize: "0.875rem" }}>
             Total portfolio value{displayCurrency !== "USD" ? ` (${getCurrencySymbol(displayCurrency)})` : ""}
           </div>
@@ -148,7 +156,7 @@ export default function Dashboard() {
               </div>
             )}
         </div>
-        <button className="primary" onClick={() => snapshot.mutate()} disabled={snapshot.isPending}>
+        <button className="primary card-row-responsive__action" onClick={() => snapshot.mutate()} disabled={snapshot.isPending}>
           {snapshot.isPending ? "Saving…" : "Save snapshot"}
         </button>
       </div>
@@ -200,12 +208,12 @@ export default function Dashboard() {
                 Click a legend label to include or exclude that account from the chart.
               </p>
             )}
-            <div style={{ height: 300 }}>
+            <div className="chart-container">
               <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={chartData} margin={{ top: 8, right: 8, left: 56, bottom: 8 }}>
+                <AreaChart data={chartData} margin={{ top: 8, right: 8, left: 20, bottom: 8 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#27272a" />
                   <XAxis dataKey="date" stroke="#71717a" />
-                  <YAxis stroke="#71717a" width={52} tickFormatter={(v) => formatDisplayAmount(Number(v))} />
+                  <YAxis stroke="#71717a" width={44} tickFormatter={(v) => formatYAxisCompact(Number(v))} />
                   <Tooltip
                     formatter={(v: number | undefined, name?: string) =>
                       name != null && typeof name === "string" && !includedAccounts.has(name) ? null : [
@@ -240,7 +248,7 @@ export default function Dashboard() {
                       })}
                       <Legend
                         content={() => (
-                          <div style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem", justifyContent: "center", marginTop: "0.5rem" }}>
+                          <div className="chart-legend">
                             {chartAccounts.map((acc) => {
                               const included = includedAccounts.has(acc.account_name);
                               const color = acc.color ?? "#71717a";
@@ -249,26 +257,16 @@ export default function Dashboard() {
                                   key={acc.account_id === -1 ? acc.account_name : acc.account_id}
                                   type="button"
                                   onClick={() => toggleAccount(acc.account_name)}
+                                  className="chart-legend-btn"
                                   style={{
-                                    display: "inline-flex",
-                                    alignItems: "center",
-                                    gap: "0.35rem",
-                                    padding: "0.25rem 0.5rem",
-                                    fontSize: "0.8125rem",
-                                    border: "1px solid #52525b",
-                                    borderRadius: 4,
                                     background: included ? color : "transparent",
                                     color: included ? "#0f0f12" : "#71717a",
-                                    cursor: "pointer",
                                     opacity: included ? 1 : 0.55,
                                   }}
                                   title={included ? "Click to exclude from chart" : "Click to include in chart"}
                                 >
                                   <span
                                     style={{
-                                      width: 10,
-                                      height: 10,
-                                      borderRadius: 2,
                                       background: included ? "currentColor" : "transparent",
                                       border: `1px solid ${color}`,
                                     }}
@@ -309,7 +307,7 @@ export default function Dashboard() {
           <p style={{ color: "#71717a", fontSize: "0.875rem", marginBottom: "0.75rem" }}>
             Value of each account per snapshot date.
           </p>
-          <div style={{ overflowX: "auto" }}>
+          <div className="table-wrapper">
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.875rem" }}>
               <thead>
                 <tr style={{ borderBottom: "1px solid #27272a" }}>
