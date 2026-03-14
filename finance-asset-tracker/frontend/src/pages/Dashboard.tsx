@@ -13,6 +13,7 @@ const ACCOUNT_TYPE_EMOJI: Record<AccountType, string> = {
 };
 
 const ACCOUNT_COLOR_FALLBACKS = ["#3b82f6", "#22c55e", "#f59e0b", "#8b5cf6", "#ec4899", "#06b6d4"];
+const DELETED_ACCOUNTS_LABEL = "Other (deleted accounts)";
 
 const formatYAxisCompact = (value: number): string => {
   const abs = Math.abs(value);
@@ -40,7 +41,8 @@ export default function Dashboard() {
   });
 
   const byAccount = (current?.by_account ?? []).filter(
-    (a): a is NonNullable<typeof a> & { account_name: string } => a != null && a.account_name != null
+    (a): a is NonNullable<typeof a> & { account_name: string } =>
+      a != null && a.account_name != null && a.account_name !== DELETED_ACCOUNTS_LABEL
   );
   const accountNames = byAccount.map((a) => a.account_name);
   const historyList = (history?.history ?? []).filter((h): h is NonNullable<typeof h> => h != null);
@@ -71,7 +73,7 @@ export default function Dashboard() {
     new Set(
       safeByAccount(historyList)
         .map((a) => a.account_name)
-        .filter((n) => !accountNames.includes(n))
+        .filter((n) => n !== DELETED_ACCOUNTS_LABEL && !accountNames.includes(n))
     )
   );
   const allChartAccountNames = [...accountNames, ...historyOnlyNames];

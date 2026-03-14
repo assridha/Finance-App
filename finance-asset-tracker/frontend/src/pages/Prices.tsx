@@ -30,6 +30,13 @@ function formatDate(str: string) {
   }
 }
 
+/** Continuous scale: green (undervalued, low %ile) → yellow (fair) → red (overvalued, high %ile). */
+function quantileColor(quantile: number): string {
+  const t = Math.max(0, Math.min(1, quantile / 100));
+  const h = 120 * (1 - t); // HSL hue: 120 = green, 60 = yellow, 0 = red
+  return `hsl(${h}, 78%, 55%)`;
+}
+
 export default function Prices() {
   const qc = useQueryClient();
   const { formatUsdForDisplay } = useDisplayCurrency();
@@ -104,7 +111,10 @@ export default function Prices() {
                     <td>{p.ceiling_95 != null ? formatUsdForDisplay(p.ceiling_95, { maximumFractionDigits: 4 }) : "—"}</td>
                     <td>
                       {p.quantile != null ? (
-                        <span title="Approx. percentile of current price between floor and ceiling">
+                        <span
+                          title="Approx. percentile of current price between floor and ceiling"
+                          style={{ color: quantileColor(p.quantile), fontWeight: 600 }}
+                        >
                           ~{p.quantile.toFixed(0)}th %ile
                         </span>
                       ) : (
