@@ -222,13 +222,6 @@ export default function Forecast() {
     return max;
   }, [series, rateUsdToDisplay, [...includedForecastSeries].sort().join(",")]);
 
-  /** Dynamic Y-axis width: minimal space for formatted ticks to avoid cropping and excess left gap */
-  const yAxisWidth = (maxValue: number) => {
-    const formatted = formatDisplayAmount(maxValue);
-    const estimatedPx = formatted.length * 5 + 10;
-    return Math.max(52, Math.min(88, estimatedPx));
-  };
-
   /** Compact Y-axis labels (k/M/B) need less width than full currency format */
   const compactYAxisWidth = (maxValue: number) => {
     const formatted = formatYAxisCompact(maxValue);
@@ -302,7 +295,7 @@ export default function Forecast() {
                     dataKey="name"
                     stroke="#71717a"
                     interval={0}
-                    tickFormatter={(v) => ({ "Market value": "Market", "Fair value": "Fair", "Worst case": "Worst", "Optimistic": "Optim." }[v] ?? v)}
+                    tickFormatter={(v: string) => ({ "Market value": "Market", "Fair value": "Fair", "Worst case": "Worst", "Optimistic": "Optim." }[v] ?? v)}
                     height={40}
                     tick={{ fontSize: 12 }}
                   />
