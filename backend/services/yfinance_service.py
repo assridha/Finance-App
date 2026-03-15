@@ -32,23 +32,25 @@ def get_history(symbol: str, period: str = "5y") -> pd.DataFrame | None:
 
 def get_ibit_btc_ratio_same_timestamp() -> tuple[float, Any] | None:
     """Get IBIT/BTC-USD ratio using same-timestamp (same trading-day close). Returns (ratio, as_of_date) or None."""
-    ibit = get_history("IBIT", period="10d")
-    btc = get_history("BTC-USD", period="10d")
-    if ibit is None or btc is None or ibit.empty or btc.empty:
-        return None
-    common = ibit.join(btc, how="inner", lsuffix="_ibit", rsuffix="_btc")
-    if common.empty:
-        return None
-    row = common.iloc[-1]
-    ibit_close = float(row["Close_ibit"])
-    btc_close = float(row["Close_btc"])
-    if btc_close <= 0:
-        return None
-    ratio = ibit_close / btc_close
-    as_of_date = common.index[-1]
-    if hasattr(as_of_date, "date"):
-        as_of_date = as_of_date.date()
-    return (ratio, as_of_date)
+    for period in ("10d", "1mo"):
+        ibit = get_history("IBIT", period=period)
+        btc = get_history("BTC-USD", period=period)
+        if ibit is None or btc is None or ibit.empty or btc.empty:
+            continue
+        common = ibit.join(btc, how="inner", lsuffix="_ibit", rsuffix="_btc")
+        if common.empty:
+            continue
+        row = common.iloc[-1]
+        ibit_close = float(row["Close_ibit"])
+        btc_close = float(row["Close_btc"])
+        if btc_close <= 0:
+            continue
+        ratio = ibit_close / btc_close
+        as_of_date = common.index[-1]
+        if hasattr(as_of_date, "date"):
+            as_of_date = as_of_date.date()
+        return (ratio, as_of_date)
+    return None
 
 
 def get_prices(symbols: list[str]) -> dict[str, dict[str, Any]]:

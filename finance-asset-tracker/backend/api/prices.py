@@ -75,6 +75,14 @@ async def recalculate_models(
 ):
     """Force refresh price models for the given symbols. Returns after recomputing; client should then GET /prices."""
     symbols = [s.strip() for s in body.symbols if s.strip()]
-    for sym in symbols:
+    # Process BTC-USD before IBIT so the BTC model exists when deriving IBIT
+    def recalc_order(s: str) -> tuple[int, str]:
+        u = s.upper()
+        if u == "BTC-USD":
+            return (0, s)
+        if u == "IBIT":
+            return (1, s)
+        return (2, s)
+    for sym in sorted(symbols, key=recalc_order):
         await get_or_compute_model(db, sym, force_refresh=True)
     return {"recalculated": symbols}

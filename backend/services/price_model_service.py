@@ -188,6 +188,36 @@ async def _save_model(db: AsyncSession, symbol: str, data: dict[str, Any]) -> Pr
     return row
 
 
+def _ibit_model_response(
+    btc: dict[str, Any],
+    ratio: float,
+    ratio_as_of: Any,
+    updated_at: str,
+) -> dict[str, Any]:
+    """Build IBIT model response dict from BTC model and ratio (no DB write)."""
+    ibit_fair = btc["fair_value"] * ratio
+    floor_5 = btc["floor_5"] * ratio
+    ceiling_95 = btc["ceiling_95"] * ratio
+    prices = get_prices(["IBIT"])
+    market_price = (prices.get("IBIT") or {}).get("price") or 0.0
+    quantile = _quantile_from_bands(market_price, ibit_fair, floor_5, ceiling_95) if market_price else None
+    if hasattr(ratio_as_of, "date") and callable(getattr(ratio_as_of, "date", None)):
+        ratio_as_of = ratio_as_of.date()
+    ratio_as_of_str = ratio_as_of.isoformat() if hasattr(ratio_as_of, "isoformat") else str(ratio_as_of)
+    return {
+        "symbol": "IBIT",
+        "model_type": "ibit",
+        "fair_value": round(ibit_fair, 4),
+        "floor_5": round(floor_5, 4),
+        "ceiling_95": round(ceiling_95, 4),
+        "market_price": round(market_price, 4) if market_price else None,
+        "quantile": round(quantile, 1) if quantile is not None else None,
+        "updated_at": updated_at,
+        "btc_to_ibit_ratio": round(ratio, 6),
+        "ratio_as_of_date": ratio_as_of_str,
+    }
+
+
 async def get_or_compute_model(
     db: AsyncSession,
     symbol: str,
@@ -204,42 +234,43 @@ async def get_or_compute_model(
     if symbol_upper == "IBIT":
         btc = await get_or_compute_model(db, "BTC-USD", force_refresh=force_refresh)
         if btc is None:
+            btc = await get_or_compute_model(db, "BTC-USD", force_refresh=True)
+        if btc is None:
             return None
-        btc_fair = btc["fair_value"]
         existing = await get_price_model(db, "IBIT")
         if not force_refresh and existing is not None and not _is_stale(existing.updated_at):
             ratio = float(existing.btc_to_ibit_ratio or 0)
-            ratio_as_of = existing.ratio_as_of_date
-            updated_at = existing.updated_at.isoformat()
-        else:
-            ratio_data = fit_ibit_model()
-            if ratio_data is None:
-                return None
-            ratio = ratio_data["btc_to_ibit_ratio"]
-            ratio_as_of = ratio_data["ratio_as_of_date"]
+            ratio_as_of = existing.ratio_as_of_date or today
+            return _ibit_model_response(btc, ratio, ratio_as_of, existing.updated_at.isoformat())
+        ratio_data = fit_ibit_model()
+        if ratio_data is not None:
             row = await _save_model(db, "IBIT", {**ratio_data, "model_type": PriceModelType.ibit})
-            updated_at = row.updated_at.isoformat()
-        if hasattr(ratio_as_of, "date"):
-            ratio_as_of = ratio_as_of.date() if callable(getattr(ratio_as_of, "date", None)) else ratio_as_of
-        ibit_fair = btc_fair * ratio
-        floor_5 = btc["floor_5"] * ratio
-        ceiling_95 = btc["ceiling_95"] * ratio
-        prices = get_prices(["IBIT"])
-        market_price = (prices.get("IBIT") or {}).get("price") or 0.0
-        quantile = _quantile_from_bands(market_price, ibit_fair, floor_5, ceiling_95) if market_price else None
-        ratio_as_of_str = ratio_as_of.isoformat() if hasattr(ratio_as_of, "isoformat") else str(ratio_as_of)
-        return {
-            "symbol": "IBIT",
-            "model_type": "ibit",
-            "fair_value": round(ibit_fair, 4),
-            "floor_5": round(floor_5, 4),
-            "ceiling_95": round(ceiling_95, 4),
-            "market_price": round(market_price, 4) if market_price else None,
-            "quantile": round(quantile, 1) if quantile is not None else None,
-            "updated_at": updated_at,
-            "btc_to_ibit_ratio": round(ratio, 6),
-            "ratio_as_of_date": ratio_as_of_str,
-        }
+            ratio_as_of = ratio_data.get("ratio_as_of_date", today)
+            return _ibit_model_response(
+                btc, ratio_data["btc_to_ibit_ratio"], ratio_as_of, row.updated_at.isoformat()
+            )
+        if existing is not None and existing.btc_to_ibit_ratio is not None:
+            ratio = float(existing.btc_to_ibit_ratio)
+            ratio_as_of = existing.ratio_as_of_date or today
+            return _ibit_model_response(btc, ratio, ratio_as_of, existing.updated_at.isoformat())
+        spot = get_prices(["IBIT", "BTC-USD"])
+        ibit_price = (spot.get("IBIT") or {}).get("price") or 0.0
+        btc_price = (spot.get("BTC-USD") or {}).get("price") or 0.0
+        if btc_price <= 0 and btc.get("market_price"):
+            btc_price = float(btc["market_price"])
+        if ibit_price > 0 and btc_price > 0:
+            ratio = ibit_price / btc_price
+            row = await _save_model(
+                db,
+                "IBIT",
+                {
+                    "model_type": PriceModelType.ibit,
+                    "btc_to_ibit_ratio": ratio,
+                    "ratio_as_of_date": today,
+                },
+            )
+            return _ibit_model_response(btc, ratio, today, row.updated_at.isoformat())
+        return None
 
     # BTC-USD
     if symbol_upper == "BTC-USD":
